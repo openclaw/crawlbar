@@ -30,13 +30,16 @@ public struct CrawlInstaller: @unchecked Sendable {
 
     private let resolver: CrawlExecutableResolver
     private let redactor: CrawlCommandRedactor
+    private let environment: [String: String]
 
     public init(
         resolver: CrawlExecutableResolver = CrawlExecutableResolver(),
-        redactor: CrawlCommandRedactor = CrawlCommandRedactor())
+        redactor: CrawlCommandRedactor = CrawlCommandRedactor(),
+        environment: [String: String] = ProcessInfo.processInfo.environment)
     {
         self.resolver = resolver
         self.redactor = redactor
+        self.environment = CrawlProcessEnvironment.normalized(environment)
     }
 
     public func install(_ installation: CrawlAppInstallation, timeoutSeconds: TimeInterval = 900) throws -> CrawlCommandResult {
@@ -85,6 +88,7 @@ public struct CrawlInstaller: @unchecked Sendable {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executablePath)
         process.arguments = arguments
+        process.environment = self.environment
         process.standardOutput = stdoutHandle
         process.standardError = stderrHandle
 

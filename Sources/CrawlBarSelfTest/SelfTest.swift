@@ -14,6 +14,7 @@ enum CrawlBarSelfTest {
         try Self.testActionFailuresPreserveStatusMetadata()
         try Self.testActionLogStoreReadsRecentResults()
         try Self.testQueryActionResolverSkipsSQLForPlainText()
+        try Self.testExecutableResolverUsesMacCliFallbackPaths()
         try Self.testConfigValuesReachCommandEnvironment()
         try Self.testGitcrawlCommandArgumentsInferRepository()
         try Self.testCommandTimeoutEscalates()
@@ -460,6 +461,47 @@ enum CrawlBarSelfTest {
             extraArguments: ["select count(*) from items"],
             timeoutSeconds: 5)
         try Self.expect(queryResult.stdout == "from-config|query select count(*) from items", "query arguments reach crawler commands")
+    }
+
+    private static func testExecutableResolverUsesMacCliFallbackPaths() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("crawlbar-path-\(UUID().uuidString)", isDirectory: true)
+        let localBinURL = directory.appendingPathComponent(".local/bin", isDirectory: true)
+        try FileManager.default.createDirectory(at: localBinURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let scriptURL = localBinURL.appendingPathComponent("fallbackcrawl")
+        try Data("""
+        #!/bin/sh
+        printf '%s' "$PATH"
+        """.utf8).write(to: scriptURL)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
+
+        let environment = [
+            "HOME": directory.path,
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+        ]
+        let resolver = CrawlExecutableResolver(environment: environment)
+        try Self.expect(
+            resolver.resolve("fallbackcrawl") == scriptURL.path,
+            "resolver checks user CLI fallback paths")
+
+        let manifest = CrawlAppManifest(
+            id: CrawlAppID(rawValue: "fallbackcrawl"),
+            displayName: "Fallback Crawl",
+            description: "A fallback PATH crawler",
+            binary: .init(name: "fallbackcrawl"),
+            branding: .init(symbolName: "terminal", accentColor: "#123456"),
+            paths: .init(),
+            commands: ["status": []],
+            capabilities: [.status])
+        let installation = CrawlAppInstallation(manifest: manifest, binaryPath: "fallbackcrawl")
+        let result = try CrawlCommandRunner(resolver: resolver, environment: environment)
+            .run(installation: installation, action: "status", timeoutSeconds: 5)
+
+        try Self.expect(
+            result.stdout.split(separator: ":").contains(Substring(localBinURL.path)),
+            "runner passes normalized fallback PATH to crawlers")
     }
 
     private static func testQueryActionResolverSkipsSQLForPlainText() throws {

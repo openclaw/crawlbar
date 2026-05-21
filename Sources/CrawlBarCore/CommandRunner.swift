@@ -55,7 +55,7 @@ public struct CrawlExecutableResolver: @unchecked Sendable {
 
     public init(fileManager: FileManager = .default, environment: [String: String] = ProcessInfo.processInfo.environment) {
         self.fileManager = fileManager
-        self.environment = environment
+        self.environment = CrawlProcessEnvironment.normalized(environment)
     }
 
     public func resolve(_ requestedPathOrName: String) -> String? {
@@ -64,11 +64,7 @@ public struct CrawlExecutableResolver: @unchecked Sendable {
             return self.isExecutable(expanded) ? expanded : nil
         }
 
-        let pathEntries = (self.environment["PATH"] ?? "")
-            .split(separator: ":", omittingEmptySubsequences: true)
-            .map(String.init)
-
-        for entry in pathEntries {
+        for entry in CrawlProcessEnvironment.pathEntries(environment: self.environment) {
             let candidate = URL(fileURLWithPath: entry)
                 .appendingPathComponent(expanded)
                 .path
@@ -101,7 +97,7 @@ public struct CrawlCommandRunner: @unchecked Sendable {
         self.resolver = resolver
         self.redactor = redactor
         self.fileManager = fileManager
-        self.environment = environment
+        self.environment = CrawlProcessEnvironment.normalized(environment)
     }
 
     public func run(
