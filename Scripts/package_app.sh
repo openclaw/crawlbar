@@ -18,8 +18,16 @@ mkdir -p "$MACOS_DIR" "$HELPERS_DIR" "$RESOURCES_DIR"
 
 cp ".build/release/CrawlBar" "$MACOS_DIR/CrawlBar"
 cp ".build/release/crawlbarctl" "$HELPERS_DIR/crawlbar"
-if [ -d ".build/release/CrawlBar_CrawlBar.bundle" ]; then
-  cp -R ".build/release/CrawlBar_CrawlBar.bundle" "$APP_DIR/CrawlBar_CrawlBar.bundle"
+RESOURCE_BUNDLE=".build/release/CrawlBar_CrawlBar.bundle"
+if [ -d "$RESOURCE_BUNDLE" ]; then
+  cp -R "$RESOURCE_BUNDLE" "$APP_DIR/CrawlBar_CrawlBar.bundle"
+  if ! find "$APP_DIR/CrawlBar_CrawlBar.bundle" -type f -print -quit | grep -q .; then
+    echo "SwiftPM resource bundle is empty: $RESOURCE_BUNDLE" >&2
+    exit 1
+  fi
+else
+  echo "missing SwiftPM resource bundle: $RESOURCE_BUNDLE" >&2
+  exit 1
 fi
 Scripts/generate_app_icon.swift "$RESOURCES_DIR/CrawlBar.icns"
 

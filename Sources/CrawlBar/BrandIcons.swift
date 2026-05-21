@@ -144,12 +144,44 @@ enum CrawlBarIconFactory {
 
     private static func bundledIcon(for appID: CrawlAppID) -> NSImage? {
         guard let name = Self.bundledIconName(for: appID),
-              let url = Bundle.module.url(forResource: name, withExtension: "png", subdirectory: "BrandIcons")
-                ?? Bundle.module.url(forResource: name, withExtension: "png")
+              let url = Self.bundledIconURL(named: name)
         else {
             return nil
         }
         return NSImage(contentsOf: url)
+    }
+
+    private static func bundledIconURL(named name: String) -> URL? {
+        for bundle in Self.resourceBundleCandidates() {
+            if let url = bundle.url(forResource: name, withExtension: "png", subdirectory: "BrandIcons")
+                ?? bundle.url(forResource: name, withExtension: "png")
+            {
+                return url
+            }
+        }
+        return nil
+    }
+
+    private static func resourceBundleCandidates() -> [Bundle] {
+        let resourceBundleName = "CrawlBar_CrawlBar.bundle"
+        let candidateURLs = [
+            // SwiftPM executable bundles currently look beside the .app root.
+            Bundle.main.bundleURL.appendingPathComponent(resourceBundleName),
+            // Conventional app bundles keep resources under Contents/Resources.
+            Bundle.main.resourceURL?.appendingPathComponent(resourceBundleName),
+            // During local development, the executable and resource bundle share a build directory.
+            Bundle.main.executableURL?.deletingLastPathComponent().appendingPathComponent(resourceBundleName),
+        ].compactMap { $0 }
+
+        var seen = Set<String>()
+        var bundles: [Bundle] = []
+        for url in candidateURLs where seen.insert(url.path).inserted {
+            if let bundle = Bundle(url: url) {
+                bundles.append(bundle)
+            }
+        }
+        bundles.append(Bundle.main)
+        return bundles
     }
 
     private static func bundledIconName(for appID: CrawlAppID) -> String? {
