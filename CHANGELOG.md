@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.1 - 2026-05-22
+
+### Fixes
+
+- Fix packaged app icon loading by resolving the SwiftPM resource bundle from installed app locations and failing packaging when the bundle is missing or empty. Thanks @mbelinky.
+
 ## v0.2.0 - 2026-05-20
 
 ### Changes
