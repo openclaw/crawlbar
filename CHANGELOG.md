@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.2 - 2026-05-22
+
+### Fixes
+
+- Fix crawler discovery from the macOS app by normalizing PATH with common Homebrew, MacPorts, and user-local CLI locations before resolving or running crawler commands. Thanks @mbelinky.
+
 ## v0.2.1 - 2026-05-22
 
 ### Fixes
