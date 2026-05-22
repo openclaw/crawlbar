@@ -1,0 +1,45 @@
+profile: crawlbar-check
+provider: aws
+class: standard
+capacity:
+  market: spot
+  strategy: most-available
+  fallback: on-demand-after-120s
+  hints: true
+  regions:
+    - eu-west-1
+    - eu-west-2
+    - eu-central-1
+    - us-east-1
+    - us-west-2
+actions:
+  workflow: .github/workflows/crabbox-hydrate.yml
+  job: hydrate
+  ref: main
+  runnerLabels:
+    - crabbox
+    - openclaw
+    - crawlbar
+  runnerVersion: latest
+  ephemeral: true
+aws:
+  region: eu-west-1
+  rootGB: 160
+sync:
+  delete: true
+  checksum: false
+  gitSeed: true
+  fingerprint: true
+  baseRef: main
+  exclude:
+    - .build
+    - .codex
+    - .DS_Store
+    - DerivedData
+    - dist
+env:
+  allow:
+    - CI
+ssh:
+  user: crabbox
+  port: "2222"
