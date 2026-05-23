@@ -14,7 +14,7 @@ enum CrawlBarSelfTest {
         try Self.testStatusMapperTrustsCrawlerState()
         try Self.testStatusMapperNormalizesWacliDoctorOutput()
         try Self.testStatusMapperNormalizesGogAuthStatus()
-        try Self.testStatusMapperNormalizesBirdCheck()
+        try Self.testStatusMapperNormalizesBirdclawAuthStatus()
         try Self.testActionFailuresPreserveStatusMetadata()
         try Self.testActionLogStoreReadsRecentResults()
         try Self.testQueryActionResolverSkipsSQLForPlainText()
@@ -165,7 +165,7 @@ enum CrawlBarSelfTest {
         try Self.expect(BuiltInCrawlApps.slacrawl.install?.package == "vincentkoc/tap/slacrawl", "built-in install metadata exists")
         try Self.expect(BuiltInCrawlApps.gogcli.availability == .available, "gog connector is available")
         try Self.expect(BuiltInCrawlApps.gogcli.binary.name == "gog", "gogcli app id uses gog executable")
-        try Self.expect(BuiltInCrawlApps.birdclaw.binary.name == "bird", "birdclaw app id uses bird executable")
+        try Self.expect(BuiltInCrawlApps.birdclaw.binary.name == "birdclaw", "birdclaw app id uses birdclaw executable")
         try Self.expect(BuiltInCrawlApps.graincrawl.availability == .available, "graincrawl is available")
         try Self.expect(BuiltInCrawlApps.graincrawl.commands["status"] == ["status", "--json"], "graincrawl uses crawlkit status command")
         try Self.expect(
@@ -558,7 +558,7 @@ enum CrawlBarSelfTest {
             timeoutSeconds: 5)
 
         try Self.expect(
-            result.stdout == "user@example-host 'sudo' '-u' 'crawl' '-H' '--' 'wacli' '--account' 'personal' '--read-only' '--json' 'messages' 'search' 'hello world'",
+            result.stdout == #"user@example-host 'sudo' '-u' 'crawl' '-H' '--' 'sh' '-lc' 'cd ~ && exec '\''wacli'\'' '\''--account'\'' '\''personal'\'' '\''--read-only'\'' '\''--json'\'' '\''messages'\'' '\''search'\'' '\''hello world'\'''"#,
             "remote SSH execution builds a quoted remote command with config defaults")
 
         let localInstallation = CrawlAppInstallation(
@@ -883,31 +883,22 @@ enum CrawlBarSelfTest {
         try Self.expect(ready.summary == "Google account user@example.com is ready", "gog auth status shows the configured account")
     }
 
-    private static func testStatusMapperNormalizesBirdCheck() throws {
+    private static func testStatusMapperNormalizesBirdclawAuthStatus() throws {
         let result = CrawlCommandResult(
             appID: BuiltInCrawlApps.birdclawID,
             action: "status",
             exitCode: 0,
             stdout: """
-            [info] Credential check
-            [ok] auth_token: abc...
-            [ok] ct0: def...
-            source: Chrome default profile
-
-            [warn] Warnings:
-               - No Twitter cookies found in Safari.
-
-            [ok] Ready to tweet!
+            {"installed":false,"availableTransport":"local","statusText":"xurl not installed. local mode active."}
             """,
             stderr: "",
             startedAt: Date(),
             finishedAt: Date())
         let status = CrawlStatusMapper().status(from: result, manifest: BuiltInCrawlApps.birdclaw)
-        try Self.expect(status.state == .current, "bird check text maps to current")
-        try Self.expect(status.summary == "X account is ready", "bird check text has a useful summary")
-        try Self.expect(
-            status.warnings.contains("No Twitter cookies found in Safari."),
-            "bird check warning block maps to status warnings")
+        try Self.expect(status.state == .current, "birdclaw auth status keeps local mode usable")
+        try Self.expect(status.summary == "xurl not installed. local mode active.", "birdclaw auth status has a useful summary")
+        try Self.expect(status.warnings.contains("Transport: local"), "birdclaw auth status exposes transport")
+        try Self.expect(status.warnings.contains("xurl not installed. local mode active."), "birdclaw auth status preserves transport warning")
     }
 
     private static func testStatusMapperTrustsCrawlerState() throws {

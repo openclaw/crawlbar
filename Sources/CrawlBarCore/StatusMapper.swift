@@ -19,9 +19,6 @@ public struct CrawlStatusMapper: Sendable {
         }
 
         guard let object = self.parseObject(result.stdout) else {
-            if manifest.id == BuiltInCrawlApps.birdclawID {
-                return self.birdTextStatus(result)
-            }
             return CrawlAppStatus(
                 appID: result.appID,
                 state: .unknown,
@@ -44,6 +41,8 @@ public struct CrawlStatusMapper: Sendable {
                 status = self.notcrawlStatus(object, result: result, staleAfterSeconds: staleAfterSeconds)
             case BuiltInCrawlApps.gogcliID:
                 status = self.gogStatus(object, result: result)
+            case BuiltInCrawlApps.birdclawID:
+                status = self.birdclawStatus(object, result: result)
             default:
                 if self.isWacliManifest(manifest) {
                     status = self.wacliStatus(object, result: result, staleAfterSeconds: staleAfterSeconds)
@@ -126,32 +125,25 @@ public struct CrawlStatusMapper: Sendable {
             warnings: warnings)
     }
 
-    private func birdTextStatus(_ result: CrawlCommandResult) -> CrawlAppStatus {
-        let output = [result.stdout, result.stderr].compactMap(\.nilIfBlank).joined(separator: "\n")
-        let lowered = output.lowercased()
-        let hasCredentialOK = lowered.contains("[ok] auth_token") || lowered.contains("ready to tweet")
-        let state: CrawlAppState
-        let summary: String
-        if hasCredentialOK {
-            state = .current
-            summary = "X account is ready"
-        } else if lowered.contains("no twitter cookies")
-            || lowered.contains("no x cookies")
-            || lowered.contains("auth_token")
-            || lowered.contains("ct0")
-        {
-            state = .needsAuth
-            summary = "X browser cookies not found"
-        } else {
-            state = .unknown
-            summary = output.nilIfBlank ?? "bird check succeeded"
+    private func birdclawStatus(_ object: [String: Any], result: CrawlCommandResult) -> CrawlAppStatus {
+        let transport = self.firstObject(["transport"], in: object) ?? object
+        let installed = self.boolValue(["installed"], in: transport)
+        let transportName = self.stringValue(["availableTransport"], in: transport)
+            ?? self.stringValue(["available_transport"], in: transport)
+        let statusText = self.stringValue(["statusText", "status_text", "summary", "message"], in: transport)
+
+        let state: CrawlAppState = .current
+        let summary = statusText ?? "birdclaw is ready"
+        var warnings = transportName.map { ["Transport: \($0)"] } ?? []
+        if installed == false, let statusText {
+            warnings.append(statusText)
         }
 
         return CrawlAppStatus(
             appID: result.appID,
             state: state,
             summary: summary,
-            warnings: self.birdWarnings(in: output))
+            warnings: warnings)
     }
 
     private func discrawlStatus(_ object: [String: Any], result: CrawlCommandResult, staleAfterSeconds: Int?) -> CrawlAppStatus {
@@ -295,30 +287,6 @@ public struct CrawlStatusMapper: Sendable {
         }
         if self.boolValue(["fts_enabled"], in: object) == false {
             warnings.append("Full-text search is not enabled")
-        }
-        return warnings
-    }
-
-    private func birdWarnings(in output: String) -> [String] {
-        var warnings: [String] = []
-        var inWarningBlock = false
-        for rawLine in output.split(separator: "\n") {
-            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
-            if line.lowercased().hasPrefix("[warn]") {
-                inWarningBlock = true
-                let message = line.replacingOccurrences(of: "[warn]", with: "")
-                    .trimmingCharacters(in: CharacterSet(charactersIn: ": ").union(.whitespacesAndNewlines))
-                if let message = message.nilIfBlank, message.lowercased() != "warnings" {
-                    warnings.append(message)
-                }
-                continue
-            }
-            guard inWarningBlock else { continue }
-            if line.hasPrefix("[") { break }
-            let message = line.trimmingCharacters(in: CharacterSet(charactersIn: "- ").union(.whitespacesAndNewlines))
-            if let message = message.nilIfBlank {
-                warnings.append(message)
-            }
         }
         return warnings
     }

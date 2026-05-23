@@ -14,7 +14,7 @@ Built-in manifests ship for:
 - `notcrawl`
 - `gogcli` through the `gog` executable
 - `wacli`
-- `birdclaw` through the `bird` executable
+- `birdclaw`
 - `graincrawl`
 
 `gogcli`, `wacli`, and `birdclaw` can run either locally or over SSH from

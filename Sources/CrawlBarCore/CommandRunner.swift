@@ -302,7 +302,8 @@ public struct CrawlCommandRunner: @unchecked Sendable {
             guard !runAs.contains(where: { $0.isWhitespace }) else {
                 throw CrawlCommandRunnerError.invalidRemoteTarget(appID: installation.id, target: runAs)
             }
-            commandParts = ["sudo", "-u", runAs, "-H", "--"] + commandParts
+            let userCommand = "cd ~ && exec " + commandParts.map(Self.shellQuoted).joined(separator: " ")
+            commandParts = ["sudo", "-u", runAs, "-H", "--", "sh", "-lc", userCommand]
         }
         return [target, commandParts.map(Self.shellQuoted).joined(separator: " ")]
     }
