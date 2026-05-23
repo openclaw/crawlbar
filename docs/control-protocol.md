@@ -121,10 +121,12 @@ Actions are manifest command arrays. CrawlBar does not shell-expand them.
   Existing `wiretap` command names can stay as backward-compatible aliases, but
   new metadata should not advertise `wiretap`.
 
-## Remote SSH Execution
+## Local Or Remote Execution
 
 Most crawlers run locally. A manifest can also declare SSH execution when the
-archive lives on another machine:
+archive lives on another machine. For user-facing built-ins, prefer a
+configurable local/remote mode so the same CrawlBar connector works on a
+laptop-only setup and a server-hosted archive:
 
 ```json
 {
@@ -132,7 +134,8 @@ archive lives on another machine:
   "display_name": "WhatsApp Work",
   "binary": { "name": "wacli" },
   "execution": {
-    "kind": "ssh",
+    "kind": "local",
+    "kind_config_id": "execution_mode",
     "target_config_id": "remote_target",
     "run_as_config_id": "remote_run_as",
     "remote_binary": "wacli"
@@ -143,6 +146,13 @@ archive lives on another machine:
     "search": ["--account", "{config:account}", "--read-only", "--json", "messages", "search"]
   },
   "config_options": [
+    {
+      "id": "execution_mode",
+      "label": "Run location",
+      "kind": "choice",
+      "default_value": "local",
+      "choices": ["local", "remote"]
+    },
     {"id": "remote_target", "label": "SSH target", "placeholder": "user@example-host"},
     {"id": "remote_run_as", "label": "Run as user", "placeholder": "crawl"},
     {"id": "account", "label": "wacli account", "default_value": "personal"}
@@ -150,11 +160,12 @@ archive lives on another machine:
 }
 ```
 
-For `ssh` execution, CrawlBar resolves local `ssh`, then runs the manifest
-binary on the remote host. Command arguments are shell-quoted by CrawlBar.
-`{config:option_id}` placeholders are filled from crawler settings or option
-defaults. Missing required placeholders surface as setup-needed status, not as
-auth failures.
+When `kind_config_id` resolves to `local`, CrawlBar resolves and runs the
+manifest binary on this Mac. When it resolves to `remote` or `ssh`, CrawlBar
+resolves local `ssh`, then runs `remote_binary` on the remote host. Command
+arguments are shell-quoted by CrawlBar. `{config:option_id}` placeholders are
+filled from crawler settings or option defaults. Missing required placeholders
+surface as setup-needed status, not as auth failures.
 
 ## Privacy
 

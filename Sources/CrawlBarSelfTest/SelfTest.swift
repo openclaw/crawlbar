@@ -13,6 +13,8 @@ enum CrawlBarSelfTest {
         try Self.testStatusMapperNormalizesCounts()
         try Self.testStatusMapperTrustsCrawlerState()
         try Self.testStatusMapperNormalizesWacliDoctorOutput()
+        try Self.testStatusMapperNormalizesGogAuthStatus()
+        try Self.testStatusMapperNormalizesBirdCheck()
         try Self.testActionFailuresPreserveStatusMetadata()
         try Self.testActionLogStoreReadsRecentResults()
         try Self.testQueryActionResolverSkipsSQLForPlainText()
@@ -36,8 +38,8 @@ enum CrawlBarSelfTest {
         let config = CrawlBarConfig(apps: []).normalized()
         try Self.expect(config.version == CrawlBarConfig.currentVersion, "config version normalizes")
         try Self.expect(config.apps.map(\.id) == BuiltInCrawlApps.all.map(\.id), "built-in apps are present")
-        try Self.expect(config.appConfig(for: BuiltInCrawlApps.gogcliID)?.enabled == false, "coming soon apps normalize disabled")
-        try Self.expect(config.appConfig(for: BuiltInCrawlApps.gogcliID)?.showInMenuBar == false, "coming soon apps stay out of menu bar")
+        try Self.expect(config.appConfig(for: BuiltInCrawlApps.gogcliID)?.enabled == true, "available gog app normalizes enabled")
+        try Self.expect(config.appConfig(for: BuiltInCrawlApps.gogcliID)?.showInMenuBar == true, "available gog app appears in menu bar")
         try Self.expect(config.manifestDirectories == ["~/.crawlbar/apps"], "manifest directory default is present")
     }
 
@@ -161,7 +163,9 @@ enum CrawlBarSelfTest {
         try Self.expect(BuiltInCrawlApps.slacrawl.privacy.containsPrivateMessages, "Slack privacy metadata flags local messages")
         try Self.expect(BuiltInCrawlApps.notcrawl.privacy.localOnlyScopes.contains("workspace pages"), "Notion privacy metadata flags workspace pages")
         try Self.expect(BuiltInCrawlApps.slacrawl.install?.package == "vincentkoc/tap/slacrawl", "built-in install metadata exists")
-        try Self.expect(BuiltInCrawlApps.gogcli.availability == .comingSoon, "coming soon manifests are marked unavailable")
+        try Self.expect(BuiltInCrawlApps.gogcli.availability == .available, "gog connector is available")
+        try Self.expect(BuiltInCrawlApps.gogcli.binary.name == "gog", "gogcli app id uses gog executable")
+        try Self.expect(BuiltInCrawlApps.birdclaw.binary.name == "bird", "birdclaw app id uses bird executable")
         try Self.expect(BuiltInCrawlApps.graincrawl.availability == .available, "graincrawl is available")
         try Self.expect(BuiltInCrawlApps.graincrawl.commands["status"] == ["status", "--json"], "graincrawl uses crawlkit status command")
         try Self.expect(
@@ -526,7 +530,8 @@ enum CrawlBarSelfTest {
             description: "A remote WhatsApp crawler",
             binary: .init(name: "wacli"),
             execution: .init(
-                kind: .ssh,
+                kind: .local,
+                kindConfigID: "execution_mode",
                 targetConfigID: "remote_target",
                 runAsConfigID: "remote_run_as",
                 remoteBinary: "wacli"),
@@ -535,12 +540,14 @@ enum CrawlBarSelfTest {
             commands: ["search": ["--account", "{config:account}", "--read-only", "--json", "messages", "search"]],
             capabilities: [.search],
             configOptions: [
+                .init(id: "execution_mode", label: "Run Location", kind: .choice, defaultValue: "local", choices: ["local", "remote"]),
                 .init(id: "account", label: "Account", defaultValue: "personal"),
             ])
         let installation = CrawlAppInstallation(
             manifest: manifest,
             binaryPath: scriptURL.path,
             configValues: [
+                "execution_mode": "remote",
                 "remote_target": "user@example-host",
                 "remote_run_as": "crawl",
             ])
@@ -553,6 +560,19 @@ enum CrawlBarSelfTest {
         try Self.expect(
             result.stdout == "user@example-host 'sudo' '-u' 'crawl' '-H' '--' 'wacli' '--account' 'personal' '--read-only' '--json' 'messages' 'search' 'hello world'",
             "remote SSH execution builds a quoted remote command with config defaults")
+
+        let localInstallation = CrawlAppInstallation(
+            manifest: manifest,
+            binaryPath: scriptURL.path,
+            configValues: ["execution_mode": "local"])
+        let localResult = try CrawlCommandRunner().run(
+            installation: localInstallation,
+            action: "search",
+            extraArguments: ["hello", "world"],
+            timeoutSeconds: 5)
+        try Self.expect(
+            localResult.stdout == "--account personal --read-only --json messages search hello world",
+            "local execution mode bypasses SSH and uses the crawler binary")
     }
 
     private static func testQueryActionResolverSkipsSQLForPlainText() throws {
@@ -807,7 +827,7 @@ enum CrawlBarSelfTest {
             action: "status",
             exitCode: 0,
             stdout: """
-            {"success":true,"data":{"store_dir":"/tmp/wacli-store","lock_held":true,"connection_state":"locked_by_other_process","authenticated":true,"fts_enabled":false,"store":{"messages":6991,"chats":677,"contacts":514,"groups":250,"last_sync_at":"2026-05-23T11:32:16Z"}},"error":null}
+            {"success":true,"data":{"state":"current","store_dir":"/tmp/wacli-store","lock_held":true,"connection_state":"locked_by_other_process","authenticated":true,"fts_enabled":false,"store":{"messages":6991,"chats":677,"contacts":514,"groups":250,"last_sync_at":"2026-05-09T05:45:44Z"}},"error":null}
             """,
             stderr: "",
             startedAt: Date(timeIntervalSince1970: 1_775_000_000),
@@ -821,14 +841,73 @@ enum CrawlBarSelfTest {
             paths: .init(),
             commands: ["status": ["host", "wacli --account test --read-only doctor --json"]],
             capabilities: [.status])
-        let status = CrawlStatusMapper().status(from: result, manifest: manifest)
+        let status = CrawlStatusMapper().status(from: result, manifest: manifest, staleAfterSeconds: 900)
 
-        try Self.expect(status.state == .current || status.state == .stale, "wacli doctor maps to a usable state")
+        try Self.expect(status.state == .current, "wacli doctor honors explicit current state over stale timestamps")
+        try Self.expect(status.freshness?.status == .stale, "wacli doctor still exposes stale freshness metadata")
         try Self.expect(status.summary == "6991 messages, 677 chats", "wacli doctor maps store counts")
         try Self.expect(status.databasePath == "/tmp/wacli-store", "wacli doctor maps store path")
         try Self.expect(status.lastSyncAt != nil, "wacli doctor maps last sync")
         try Self.expect(status.warnings.contains("Store is locked by locked_by_other_process"), "wacli lock is a warning")
         try Self.expect(status.warnings.contains("Full-text search is not enabled"), "wacli FTS state is a warning")
+    }
+
+    private static func testStatusMapperNormalizesGogAuthStatus() throws {
+        let needsAuthResult = CrawlCommandResult(
+            appID: BuiltInCrawlApps.gogcliID,
+            action: "status",
+            exitCode: 0,
+            stdout: """
+            {"account":{"credentials_exists":false,"service_account_configured":false,"email":""},"config":{"exists":false,"path":"/tmp/gog/config.json"},"keyring":{"backend":"auto","source":"default"}}
+            """,
+            stderr: "",
+            startedAt: Date(),
+            finishedAt: Date())
+        let needsAuth = CrawlStatusMapper().status(from: needsAuthResult, manifest: BuiltInCrawlApps.gogcli)
+        try Self.expect(needsAuth.state == .needsAuth, "gog auth status without credentials maps to needs auth")
+        try Self.expect(needsAuth.summary == "Google account needs auth", "gog auth status has a useful setup summary")
+        try Self.expect(needsAuth.configPath == "/tmp/gog/config.json", "gog auth status maps config path")
+
+        let readyResult = CrawlCommandResult(
+            appID: BuiltInCrawlApps.gogcliID,
+            action: "status",
+            exitCode: 0,
+            stdout: """
+            {"account":{"credentials_exists":true,"service_account_configured":false,"email":"user@example.com"},"config":{"exists":true,"path":"/tmp/gog/config.json"}}
+            """,
+            stderr: "",
+            startedAt: Date(),
+            finishedAt: Date())
+        let ready = CrawlStatusMapper().status(from: readyResult, manifest: BuiltInCrawlApps.gogcli)
+        try Self.expect(ready.state == .current, "gog auth status with credentials maps to current")
+        try Self.expect(ready.summary == "Google account user@example.com is ready", "gog auth status shows the configured account")
+    }
+
+    private static func testStatusMapperNormalizesBirdCheck() throws {
+        let result = CrawlCommandResult(
+            appID: BuiltInCrawlApps.birdclawID,
+            action: "status",
+            exitCode: 0,
+            stdout: """
+            [info] Credential check
+            [ok] auth_token: abc...
+            [ok] ct0: def...
+            source: Chrome default profile
+
+            [warn] Warnings:
+               - No Twitter cookies found in Safari.
+
+            [ok] Ready to tweet!
+            """,
+            stderr: "",
+            startedAt: Date(),
+            finishedAt: Date())
+        let status = CrawlStatusMapper().status(from: result, manifest: BuiltInCrawlApps.birdclaw)
+        try Self.expect(status.state == .current, "bird check text maps to current")
+        try Self.expect(status.summary == "X account is ready", "bird check text has a useful summary")
+        try Self.expect(
+            status.warnings.contains("No Twitter cookies found in Safari."),
+            "bird check warning block maps to status warnings")
     }
 
     private static func testStatusMapperTrustsCrawlerState() throws {

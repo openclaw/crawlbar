@@ -19,6 +19,9 @@ public struct CrawlStatusMapper: Sendable {
         }
 
         guard let object = self.parseObject(result.stdout) else {
+            if manifest.id == BuiltInCrawlApps.birdclawID {
+                return self.birdTextStatus(result)
+            }
             return CrawlAppStatus(
                 appID: result.appID,
                 state: .unknown,
@@ -39,6 +42,8 @@ public struct CrawlStatusMapper: Sendable {
                 status = self.discrawlStatus(object, result: result, staleAfterSeconds: staleAfterSeconds)
             case BuiltInCrawlApps.notcrawlID:
                 status = self.notcrawlStatus(object, result: result, staleAfterSeconds: staleAfterSeconds)
+            case BuiltInCrawlApps.gogcliID:
+                status = self.gogStatus(object, result: result)
             default:
                 if self.isWacliManifest(manifest) {
                     status = self.wacliStatus(object, result: result, staleAfterSeconds: staleAfterSeconds)
@@ -95,6 +100,58 @@ public struct CrawlStatusMapper: Sendable {
             databases: databases,
             freshness: freshness,
             share: self.shareStatus(in: object))
+    }
+
+    private func gogStatus(_ object: [String: Any], result: CrawlCommandResult) -> CrawlAppStatus {
+        let account = self.firstObject(["account"], in: object) ?? [:]
+        let config = self.firstObject(["config"], in: object) ?? [:]
+        let credentialsExist = self.boolValue(["credentials_exists"], in: account) ?? false
+        let serviceAccountConfigured = self.boolValue(["service_account_configured"], in: account) ?? false
+        let email = self.stringValue(["email", "account"], in: account)
+        let configPath = self.stringValue(["path"], in: config)
+
+        let state: CrawlAppState = (credentialsExist || serviceAccountConfigured) ? .current : .needsAuth
+        var warnings: [String] = []
+        if self.boolValue(["exists"], in: config) == false {
+            warnings.append("gog config file not found")
+        }
+        let summary = email.map { "Google account \($0) is ready" }
+            ?? (state == .current ? "Google account is ready" : "Google account needs auth")
+
+        return CrawlAppStatus(
+            appID: result.appID,
+            state: state,
+            summary: summary,
+            configPath: configPath,
+            warnings: warnings)
+    }
+
+    private func birdTextStatus(_ result: CrawlCommandResult) -> CrawlAppStatus {
+        let output = [result.stdout, result.stderr].compactMap(\.nilIfBlank).joined(separator: "\n")
+        let lowered = output.lowercased()
+        let hasCredentialOK = lowered.contains("[ok] auth_token") || lowered.contains("ready to tweet")
+        let state: CrawlAppState
+        let summary: String
+        if hasCredentialOK {
+            state = .current
+            summary = "X account is ready"
+        } else if lowered.contains("no twitter cookies")
+            || lowered.contains("no x cookies")
+            || lowered.contains("auth_token")
+            || lowered.contains("ct0")
+        {
+            state = .needsAuth
+            summary = "X browser cookies not found"
+        } else {
+            state = .unknown
+            summary = output.nilIfBlank ?? "bird check succeeded"
+        }
+
+        return CrawlAppStatus(
+            appID: result.appID,
+            state: state,
+            summary: summary,
+            warnings: self.birdWarnings(in: output))
     }
 
     private func discrawlStatus(_ object: [String: Any], result: CrawlCommandResult, staleAfterSeconds: Int?) -> CrawlAppStatus {
@@ -172,7 +229,10 @@ public struct CrawlStatusMapper: Sendable {
         } else if self.boolValue(["success"], in: object) == false {
             state = .error
         } else {
-            state = freshness?.status ?? .current
+            state = self.statusValue(["state", "status"], in: data)
+                ?? self.statusValue(["state", "status"], in: object)
+                ?? freshness?.status
+                ?? .current
         }
         let storeDir = self.stringValue(["store_dir"], in: data)
         let warnings = self.wacliWarnings(in: data)
@@ -235,6 +295,30 @@ public struct CrawlStatusMapper: Sendable {
         }
         if self.boolValue(["fts_enabled"], in: object) == false {
             warnings.append("Full-text search is not enabled")
+        }
+        return warnings
+    }
+
+    private func birdWarnings(in output: String) -> [String] {
+        var warnings: [String] = []
+        var inWarningBlock = false
+        for rawLine in output.split(separator: "\n") {
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            if line.lowercased().hasPrefix("[warn]") {
+                inWarningBlock = true
+                let message = line.replacingOccurrences(of: "[warn]", with: "")
+                    .trimmingCharacters(in: CharacterSet(charactersIn: ": ").union(.whitespacesAndNewlines))
+                if let message = message.nilIfBlank, message.lowercased() != "warnings" {
+                    warnings.append(message)
+                }
+                continue
+            }
+            guard inWarningBlock else { continue }
+            if line.hasPrefix("[") { break }
+            let message = line.trimmingCharacters(in: CharacterSet(charactersIn: "- ").union(.whitespacesAndNewlines))
+            if let message = message.nilIfBlank {
+                warnings.append(message)
+            }
         }
         return warnings
     }

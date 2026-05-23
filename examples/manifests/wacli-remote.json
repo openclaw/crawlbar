@@ -8,7 +8,8 @@
     "name": "wacli"
   },
   "execution": {
-    "kind": "ssh",
+    "kind": "local",
+    "kind_config_id": "execution_mode",
     "target_config_id": "remote_target",
     "run_as_config_id": "remote_run_as",
     "remote_binary": "wacli"
@@ -26,6 +27,14 @@
   },
   "capabilities": ["status", "doctor", "search"],
   "config_options": [
+    {
+      "id": "execution_mode",
+      "label": "Run location",
+      "kind": "choice",
+      "help": "Run wacli on this Mac or over SSH on another machine.",
+      "default_value": "remote",
+      "choices": ["local", "remote"]
+    },
     {
       "id": "remote_target",
       "label": "SSH target",
@@ -47,6 +56,11 @@
     }
   ],
   "config_sections": [
+    {
+      "id": "execution",
+      "title": "Execution",
+      "option_ids": ["execution_mode"]
+    },
     {
       "id": "remote",
       "title": "Remote Host",

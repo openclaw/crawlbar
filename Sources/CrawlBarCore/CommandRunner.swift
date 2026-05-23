@@ -123,8 +123,9 @@ public struct CrawlCommandRunner: @unchecked Sendable {
             extraArguments: extraArguments)
         arguments = try Self.interpolatedArguments(arguments, installation: installation)
 
+        let executionKind = installation.manifest.executionKind(configValues: installation.configValues)
         let executableName = installation.binaryPath
-            ?? (installation.manifest.execution?.kind == .ssh ? "ssh" : installation.manifest.binary.name)
+            ?? (executionKind == .ssh ? "ssh" : installation.manifest.binary.name)
         guard let executablePath = self.resolver.resolve(executableName) else {
             throw CrawlCommandRunnerError.executableNotFound(executableName)
         }
@@ -142,7 +143,7 @@ public struct CrawlCommandRunner: @unchecked Sendable {
             commandEnvironment[envName] = value
         }
 
-        if installation.manifest.execution?.kind == .ssh {
+        if executionKind == .ssh {
             arguments = try Self.sshArguments(
                 for: installation,
                 remoteArguments: arguments)

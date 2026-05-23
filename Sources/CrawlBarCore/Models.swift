@@ -44,17 +44,20 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
 
     public struct Execution: Codable, Equatable, Sendable {
         public var kind: ExecutionKind
+        public var kindConfigID: String?
         public var targetConfigID: String?
         public var runAsConfigID: String?
         public var remoteBinary: String?
 
         public init(
             kind: ExecutionKind = .local,
+            kindConfigID: String? = nil,
             targetConfigID: String? = nil,
             runAsConfigID: String? = nil,
             remoteBinary: String? = nil)
         {
             self.kind = kind
+            self.kindConfigID = kindConfigID
             self.targetConfigID = targetConfigID
             self.runAsConfigID = runAsConfigID
             self.remoteBinary = remoteBinary
@@ -62,6 +65,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
 
         private enum CodingKeys: String, CodingKey {
             case kind
+            case kindConfigID = "kind_config_id"
             case targetConfigID = "target_config_id"
             case runAsConfigID = "run_as_config_id"
             case remoteBinary = "remote_binary"
@@ -357,6 +361,24 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         }
         return self.commands["status"] != nil && self.configOptions.contains { option in
             option.kind == .secret && option.envVar?.nilIfBlank != nil
+        }
+    }
+
+    public func executionKind(configValues: [String: String]) -> ExecutionKind {
+        guard let execution else { return .local }
+        guard let modeOptionID = execution.kindConfigID?.nilIfBlank else {
+            return execution.kind
+        }
+        let configuredMode = configValues[modeOptionID]?.nilIfBlank
+            ?? self.configOptions.first { $0.id == modeOptionID }?.defaultValue?.nilIfBlank
+        guard let configuredMode else { return execution.kind }
+        switch configuredMode.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "local":
+            return .local
+        case "remote", "ssh":
+            return .ssh
+        default:
+            return execution.kind
         }
     }
 
@@ -829,6 +851,16 @@ public extension CrawlAppStatus {
            (lowered.contains("bad credentials") || lowered.contains("status 401") || lowered.contains("401"))
         {
             return (.needsAuth, "GitHub credentials rejected")
+        }
+        if appID == BuiltInCrawlApps.birdclawID,
+           lowered.contains("no twitter cookies") || lowered.contains("no x cookies")
+        {
+            return (.needsAuth, "X browser cookies not found")
+        }
+        if appID == BuiltInCrawlApps.gogcliID,
+           lowered.contains("credentials") || lowered.contains("auth")
+        {
+            return (.needsAuth, "Google account needs auth")
         }
         return (.error, Self.firstUsefulFailureLine(in: message) ?? "Command failed")
     }
