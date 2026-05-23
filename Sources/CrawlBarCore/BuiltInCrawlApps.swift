@@ -206,8 +206,12 @@ public enum BuiltInCrawlApps {
         id: Self.wacliID,
         displayName: "WhatsApp",
         description: "WhatsApp message archive connector",
-        availability: .comingSoon,
         binary: .init(name: "wacli"),
+        execution: .init(
+            kind: .ssh,
+            targetConfigID: "remote_target",
+            runAsConfigID: "remote_run_as",
+            remoteBinary: "wacli"),
         branding: .init(
             symbolName: "message.circle",
             accentColor: "#25D366",
@@ -219,9 +223,22 @@ public enum BuiltInCrawlApps {
             defaultCache: "~/.config/wacli/cache",
             defaultLogs: "~/.config/wacli/logs",
             defaultShare: "~/.config/wacli/share"),
-        commands: [:],
-        capabilities: [],
-        privacy: .init(containsPrivateMessages: true, exportsSecrets: false))
+        commands: [
+            "status": ["--account", "{config:account}", "--read-only", "doctor", "--json"],
+            "doctor": ["--account", "{config:account}", "--read-only", "doctor", "--json"],
+            "search": ["--account", "{config:account}", "--read-only", "--json", "messages", "search"],
+        ],
+        capabilities: [.status, .doctor, .search],
+        privacy: .init(containsPrivateMessages: true, exportsSecrets: false, localOnlyScopes: ["remote WhatsApp store"]),
+        configOptions: [
+            .init(id: "remote_target", label: "SSH target", help: "SSH target that can run wacli, for example user@example-host.", placeholder: "user@example-host"),
+            .init(id: "remote_run_as", label: "Run as user", help: "Optional remote Unix user for sudo -u, when wacli is installed under a service account.", placeholder: "crawl"),
+            .init(id: "account", label: "wacli account", help: "Named account from the remote wacli config.", placeholder: "personal", defaultValue: "personal"),
+        ],
+        configSections: [
+            .init(id: "remote", title: "Remote Host", optionIDs: ["remote_target", "remote_run_as"]),
+            .init(id: "whatsapp", title: "WhatsApp Account", optionIDs: ["account"]),
+        ])
 
     public static let birdclaw = CrawlAppManifest(
         id: Self.birdclawID,

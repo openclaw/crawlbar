@@ -40,7 +40,11 @@ public struct CrawlStatusMapper: Sendable {
             case BuiltInCrawlApps.notcrawlID:
                 status = self.notcrawlStatus(object, result: result, staleAfterSeconds: staleAfterSeconds)
             default:
-                status = self.genericStatus(object, result: result, staleAfterSeconds: staleAfterSeconds)
+                if self.isWacliManifest(manifest) {
+                    status = self.wacliStatus(object, result: result, staleAfterSeconds: staleAfterSeconds)
+                } else {
+                    status = self.genericStatus(object, result: result, staleAfterSeconds: staleAfterSeconds)
+                }
             }
         }
         return CrawlDatabaseInventory.enrich(status, manifest: manifest)
@@ -149,6 +153,50 @@ public struct CrawlStatusMapper: Sendable {
             share: self.shareStatus(in: object))
     }
 
+    private func wacliStatus(_ object: [String: Any], result: CrawlCommandResult, staleAfterSeconds: Int?) -> CrawlAppStatus {
+        let data = self.firstObject(["data"], in: object) ?? object
+        let store = self.firstObject(["store"], in: data) ?? [:]
+        let counts = [
+            self.count("messages", "Messages", ["messages", "message_count"]),
+            self.count("chats", "Chats", ["chats", "chat_count"]),
+            self.count("contacts", "Contacts", ["contacts", "contact_count"]),
+            self.count("groups", "Groups", ["groups", "group_count"]),
+        ].compactMap { self.value($0, in: store) }
+        let lastSyncAt = self.dateValue(["last_sync_at"], in: store)
+            ?? self.dateValue(["last_sync_at", "updated_at"], in: data)
+        let freshness = self.freshness(lastSyncAt: lastSyncAt, staleAfterSeconds: staleAfterSeconds)
+        let authenticated = self.boolValue(["authenticated"], in: data)
+        let state: CrawlAppState
+        if authenticated == false {
+            state = .needsAuth
+        } else if self.boolValue(["success"], in: object) == false {
+            state = .error
+        } else {
+            state = freshness?.status ?? .current
+        }
+        let storeDir = self.stringValue(["store_dir"], in: data)
+        let warnings = self.wacliWarnings(in: data)
+        return CrawlAppStatus(
+            appID: result.appID,
+            state: state,
+            summary: self.summary(from: counts, fallback: authenticated == false ? "WhatsApp account needs auth" : "WhatsApp archive is current"),
+            databasePath: storeDir,
+            lastSyncAt: lastSyncAt,
+            counts: counts,
+            databases: storeDir.map {
+                [CrawlDatabaseResource(
+                    id: $0,
+                    label: "WhatsApp store",
+                    kind: .logical,
+                    path: $0,
+                    isPrimary: true,
+                    counts: counts)]
+            } ?? [],
+            freshness: freshness,
+            warnings: warnings,
+            errors: self.wacliErrors(in: object))
+    }
+
     private func genericStatus(_ object: [String: Any], result: CrawlCommandResult, staleAfterSeconds: Int?) -> CrawlAppStatus {
         let counts = self.statusCounts(in: object, fallback: self.counts(in: object))
         let databases = self.databaseResources(in: object)
@@ -170,6 +218,33 @@ public struct CrawlStatusMapper: Sendable {
             databases: databases,
             freshness: freshness,
             share: self.shareStatus(in: object))
+    }
+
+    private func isWacliManifest(_ manifest: CrawlAppManifest) -> Bool {
+        manifest.id == BuiltInCrawlApps.wacliID
+            || manifest.id.rawValue.hasPrefix("wacli-")
+            || manifest.binary.name == "wacli"
+    }
+
+    private func wacliWarnings(in object: [String: Any]) -> [String] {
+        var warnings: [String] = []
+        if self.boolValue(["lock_held"], in: object) == true,
+           let state = self.stringValue(["connection_state"], in: object)
+        {
+            warnings.append("Store is locked by \(state)")
+        }
+        if self.boolValue(["fts_enabled"], in: object) == false {
+            warnings.append("Full-text search is not enabled")
+        }
+        return warnings
+    }
+
+    private func wacliErrors(in object: [String: Any]) -> [String] {
+        guard self.boolValue(["success"], in: object) == false else { return [] }
+        if let error = self.stringValue(["error"], in: object) {
+            return [error]
+        }
+        return ["wacli doctor reported failure"]
     }
 
     private func parseObject(_ text: String) -> [String: Any]? {
@@ -245,9 +320,6 @@ public struct CrawlStatusMapper: Sendable {
     {
         if let state = self.statusValue(["state", "status"], in: object)
         {
-            if state == .current, freshness?.status == .stale {
-                return .stale
-            }
             return state
         }
         return freshness?.status ?? self.state(lastSyncAt: lastSyncAt, fallback: fallback, staleAfterSeconds: staleAfterSeconds)

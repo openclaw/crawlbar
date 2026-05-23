@@ -8,6 +8,8 @@ import Glibc
 public enum CrawlCommandRunnerError: LocalizedError, Sendable {
     case executableNotFound(String)
     case commandUnavailable(appID: CrawlAppID, action: String)
+    case missingRequiredConfig(appID: CrawlAppID, optionID: String)
+    case invalidRemoteTarget(appID: CrawlAppID, target: String)
     case timedOut(appID: CrawlAppID, action: String, seconds: Int)
 
     public var errorDescription: String? {
@@ -16,6 +18,10 @@ public enum CrawlCommandRunnerError: LocalizedError, Sendable {
             "Could not find executable: \(name)"
         case let .commandUnavailable(appID, action):
             "\(appID.rawValue) does not expose a \(action) command"
+        case let .missingRequiredConfig(appID, optionID):
+            "\(appID.rawValue) is missing required config: \(optionID)"
+        case let .invalidRemoteTarget(appID, target):
+            "\(appID.rawValue) has an invalid SSH target: \(target)"
         case let .timedOut(appID, action, seconds):
             "\(appID.rawValue) \(action) timed out after \(seconds)s"
         }
@@ -115,8 +121,10 @@ public struct CrawlCommandRunner: @unchecked Sendable {
             action: action,
             commandArguments: arguments,
             extraArguments: extraArguments)
+        arguments = try Self.interpolatedArguments(arguments, installation: installation)
 
-        let executableName = installation.binaryPath ?? installation.manifest.binary.name
+        let executableName = installation.binaryPath
+            ?? (installation.manifest.execution?.kind == .ssh ? "ssh" : installation.manifest.binary.name)
         guard let executablePath = self.resolver.resolve(executableName) else {
             throw CrawlCommandRunnerError.executableNotFound(executableName)
         }
@@ -132,6 +140,12 @@ public struct CrawlCommandRunner: @unchecked Sendable {
                   let value = installation.configValues[option.id]?.nilIfBlank
             else { continue }
             commandEnvironment[envName] = value
+        }
+
+        if installation.manifest.execution?.kind == .ssh {
+            arguments = try Self.sshArguments(
+                for: installation,
+                remoteArguments: arguments)
         }
 
         return try self.runProcess(
@@ -223,6 +237,10 @@ public struct CrawlCommandRunner: @unchecked Sendable {
         extraArguments: [String])
         -> [String]
     {
+        if Self.wacliSearchNeedsJoinedQuery(installation: installation, action: action, extraArguments: extraArguments) {
+            return commandArguments + [extraArguments.joined(separator: " ")]
+        }
+
         guard installation.id == BuiltInCrawlApps.gitcrawlID,
               let repository = GitcrawlStatusSnapshot.repository(for: installation)
         else {
@@ -238,6 +256,84 @@ public struct CrawlCommandRunner: @unchecked Sendable {
         }
 
         return commandArguments + extraArguments
+    }
+
+    private static func interpolatedArguments(_ arguments: [String], installation: CrawlAppInstallation) throws -> [String] {
+        try arguments.map { argument in
+            try Self.interpolatedArgument(argument, installation: installation)
+        }
+    }
+
+    private static func interpolatedArgument(_ argument: String, installation: CrawlAppInstallation) throws -> String {
+        var value = argument
+        while let range = value.range(of: #"\{config:([A-Za-z0-9_.-]+)\}"#, options: .regularExpression) {
+            let token = String(value[range])
+            let optionID = String(token.dropFirst("{config:".count).dropLast())
+            guard let replacement = Self.configValue(optionID, installation: installation) else {
+                throw CrawlCommandRunnerError.missingRequiredConfig(appID: installation.id, optionID: optionID)
+            }
+            value.replaceSubrange(range, with: replacement)
+        }
+        return value
+    }
+
+    private static func sshArguments(
+        for installation: CrawlAppInstallation,
+        remoteArguments: [String])
+        throws -> [String]
+    {
+        guard let execution = installation.manifest.execution else {
+            return remoteArguments
+        }
+        let targetOptionID = execution.targetConfigID?.nilIfBlank ?? "remote_target"
+        guard let target = Self.configValue(targetOptionID, installation: installation) else {
+            throw CrawlCommandRunnerError.missingRequiredConfig(appID: installation.id, optionID: targetOptionID)
+        }
+        guard !target.contains(where: { $0.isWhitespace }) else {
+            throw CrawlCommandRunnerError.invalidRemoteTarget(appID: installation.id, target: target)
+        }
+
+        let remoteBinary = execution.remoteBinary?.nilIfBlank ?? installation.manifest.binary.name
+        var commandParts = [remoteBinary] + remoteArguments
+        if let runAsOptionID = execution.runAsConfigID?.nilIfBlank,
+           let runAs = Self.configValue(runAsOptionID, installation: installation)
+        {
+            guard !runAs.contains(where: { $0.isWhitespace }) else {
+                throw CrawlCommandRunnerError.invalidRemoteTarget(appID: installation.id, target: runAs)
+            }
+            commandParts = ["sudo", "-u", runAs, "-H", "--"] + commandParts
+        }
+        return [target, commandParts.map(Self.shellQuoted).joined(separator: " ")]
+    }
+
+    private static func shellQuoted(_ value: String) -> String {
+        "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
+    }
+
+    private static func configValue(_ optionID: String, installation: CrawlAppInstallation) -> String? {
+        if let value = installation.configValues[optionID]?.nilIfBlank {
+            return value
+        }
+        return installation.manifest.configOptions.first { $0.id == optionID }?.defaultValue?.nilIfBlank
+    }
+
+    private static func wacliSearchNeedsJoinedQuery(
+        installation: CrawlAppInstallation,
+        action: String,
+        extraArguments: [String])
+        -> Bool
+    {
+        guard !extraArguments.isEmpty,
+              action == "search" || action == "query",
+              Self.isWacliInstallation(installation)
+        else { return false }
+        return true
+    }
+
+    private static func isWacliInstallation(_ installation: CrawlAppInstallation) -> Bool {
+        installation.id == BuiltInCrawlApps.wacliID
+            || installation.id.rawValue.hasPrefix("wacli-")
+            || installation.manifest.binary.name == "wacli"
     }
 
     private static func gitcrawlQueryNeedsRepository(action: String, extraArguments: [String]) -> Bool {

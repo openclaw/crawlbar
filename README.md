@@ -12,6 +12,7 @@ Built-in manifests ship for:
 - `slacrawl`
 - `discrawl`
 - `notcrawl`
+- `wacli` over SSH
 - `graincrawl`
 
 Future crawler repos can drop a manifest JSON file into `~/.crawlbar/apps/*.json` to appear without a CrawlBar code change.

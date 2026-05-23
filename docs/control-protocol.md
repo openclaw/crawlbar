@@ -121,6 +121,41 @@ Actions are manifest command arrays. CrawlBar does not shell-expand them.
   Existing `wiretap` command names can stay as backward-compatible aliases, but
   new metadata should not advertise `wiretap`.
 
+## Remote SSH Execution
+
+Most crawlers run locally. A manifest can also declare SSH execution when the
+archive lives on another machine:
+
+```json
+{
+  "id": "wacli-work",
+  "display_name": "WhatsApp Work",
+  "binary": { "name": "wacli" },
+  "execution": {
+    "kind": "ssh",
+    "target_config_id": "remote_target",
+    "run_as_config_id": "remote_run_as",
+    "remote_binary": "wacli"
+  },
+  "commands": {
+    "status": ["--account", "{config:account}", "--read-only", "doctor", "--json"],
+    "doctor": ["--account", "{config:account}", "--read-only", "doctor", "--json"],
+    "search": ["--account", "{config:account}", "--read-only", "--json", "messages", "search"]
+  },
+  "config_options": [
+    {"id": "remote_target", "label": "SSH target", "placeholder": "user@example-host"},
+    {"id": "remote_run_as", "label": "Run as user", "placeholder": "crawl"},
+    {"id": "account", "label": "wacli account", "default_value": "personal"}
+  ]
+}
+```
+
+For `ssh` execution, CrawlBar resolves local `ssh`, then runs the manifest
+binary on the remote host. Command arguments are shell-quoted by CrawlBar.
+`{config:option_id}` placeholders are filled from crawler settings or option
+defaults. Missing required placeholders surface as setup-needed status, not as
+auth failures.
+
 ## Privacy
 
 Command output is redacted before display or persistence. Logs are stored under `~/.crawlbar/logs` with private permissions.

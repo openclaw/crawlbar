@@ -37,6 +37,37 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         }
     }
 
+    public enum ExecutionKind: String, Codable, Equatable, Sendable {
+        case local
+        case ssh
+    }
+
+    public struct Execution: Codable, Equatable, Sendable {
+        public var kind: ExecutionKind
+        public var targetConfigID: String?
+        public var runAsConfigID: String?
+        public var remoteBinary: String?
+
+        public init(
+            kind: ExecutionKind = .local,
+            targetConfigID: String? = nil,
+            runAsConfigID: String? = nil,
+            remoteBinary: String? = nil)
+        {
+            self.kind = kind
+            self.targetConfigID = targetConfigID
+            self.runAsConfigID = runAsConfigID
+            self.remoteBinary = remoteBinary
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case kind
+            case targetConfigID = "target_config_id"
+            case runAsConfigID = "run_as_config_id"
+            case remoteBinary = "remote_binary"
+        }
+    }
+
     public struct Branding: Codable, Equatable, Sendable {
         public var symbolName: String
         public var accentColor: String
@@ -234,6 +265,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
     public var description: String
     public var availability: Availability
     public var binary: Binary
+    public var execution: Execution?
     public var branding: Branding
     public var paths: Paths
     public var commands: [String: [String]]
@@ -251,6 +283,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         description: String,
         availability: Availability = .available,
         binary: Binary,
+        execution: Execution? = nil,
         branding: Branding,
         paths: Paths,
         commands: [String: [String]],
@@ -267,6 +300,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         self.description = description
         self.availability = availability
         self.binary = binary
+        self.execution = execution
         self.branding = branding
         self.paths = paths
         self.commands = commands
@@ -285,6 +319,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         case description
         case availability
         case binary
+        case execution
         case branding
         case paths
         case commands
@@ -304,6 +339,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         self.description = try container.decode(String.self, forKey: .description)
         self.availability = try container.decodeIfPresent(Availability.self, forKey: .availability) ?? .available
         self.binary = try container.decode(Binary.self, forKey: .binary)
+        self.execution = try container.decodeIfPresent(Execution.self, forKey: .execution)
         self.branding = try container.decode(Branding.self, forKey: .branding)
         self.paths = try container.decode(Paths.self, forKey: .paths)
         self.commands = try Self.decodeCommands(from: container, binaryName: self.binary.name)

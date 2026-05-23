@@ -885,6 +885,11 @@ struct CrawlBarSidebarRow: View {
         if self.rowState == .error {
             return self.status?.summary ?? "Error"
         }
+        if self.rowState == .current,
+           self.status?.freshness?.status == .stale
+        {
+            return "Status current"
+        }
         if let syncedAt = self.syncedAt {
             return "Synced \(CrawlBarDateText.relative(syncedAt))"
         }

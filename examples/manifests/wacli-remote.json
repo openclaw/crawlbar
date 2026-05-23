@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "id": "wacli-work",
+  "display_name": "WhatsApp Work",
+  "description": "Remote WhatsApp archive over SSH",
+  "availability": "available",
+  "binary": {
+    "name": "wacli"
+  },
+  "execution": {
+    "kind": "ssh",
+    "target_config_id": "remote_target",
+    "run_as_config_id": "remote_run_as",
+    "remote_binary": "wacli"
+  },
+  "branding": {
+    "symbol_name": "message.circle",
+    "accent_color": "#25D366",
+    "bundle_identifier": "net.whatsapp.WhatsApp"
+  },
+  "paths": {},
+  "commands": {
+    "status": ["--account", "{config:account}", "--read-only", "doctor", "--json"],
+    "doctor": ["--account", "{config:account}", "--read-only", "doctor", "--json"],
+    "search": ["--account", "{config:account}", "--read-only", "--json", "messages", "search"]
+  },
+  "capabilities": ["status", "doctor", "search"],
+  "config_options": [
+    {
+      "id": "remote_target",
+      "label": "SSH target",
+      "help": "SSH target that can run wacli.",
+      "placeholder": "user@example-host"
+    },
+    {
+      "id": "remote_run_as",
+      "label": "Run as user",
+      "help": "Optional remote Unix user for sudo -u.",
+      "placeholder": "crawl"
+    },
+    {
+      "id": "account",
+      "label": "wacli account",
+      "help": "Named account from the remote wacli config.",
+      "placeholder": "personal",
+      "default_value": "personal"
+    }
+  ],
+  "config_sections": [
+    {
+      "id": "remote",
+      "title": "Remote Host",
+      "option_ids": ["remote_target", "remote_run_as"]
+    },
+    {
+      "id": "whatsapp",
+      "title": "WhatsApp Account",
+      "option_ids": ["account"]
+    }
+  ],
+  "privacy": {
+    "contains_private_messages": true,
+    "exports_secrets": false,
+    "local_only_scopes": ["remote WhatsApp store"]
+  }
+}

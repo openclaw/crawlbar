@@ -11,11 +11,14 @@ enum CrawlBarSelfTest {
         try Self.testNativeConfigRoundTrips()
         try Self.testStatusSecretsLoadFromNativeConfig()
         try Self.testStatusMapperNormalizesCounts()
+        try Self.testStatusMapperTrustsCrawlerState()
+        try Self.testStatusMapperNormalizesWacliDoctorOutput()
         try Self.testActionFailuresPreserveStatusMetadata()
         try Self.testActionLogStoreReadsRecentResults()
         try Self.testQueryActionResolverSkipsSQLForPlainText()
         try Self.testExecutableResolverUsesMacCliFallbackPaths()
         try Self.testConfigValuesReachCommandEnvironment()
+        try Self.testRemoteSshExecutionBuildsCommand()
         try Self.testGitcrawlCommandArgumentsInferRepository()
         try Self.testCommandTimeoutEscalates()
         try Self.testDatabaseBackupCopiesFiles()
@@ -346,7 +349,7 @@ enum CrawlBarSelfTest {
 
         let crawlKitStatus = CrawlStatusMapper().status(from: crawlKitResult, manifest: BuiltInCrawlApps.discrawl)
         try Self.expect(crawlKitStatus.summary == "5052 messages across 293 channels", "crawlkit status summary maps")
-        try Self.expect(crawlKitStatus.state == .stale, "stale freshness wins over current state")
+        try Self.expect(crawlKitStatus.state == .current, "crawlkit explicit state maps")
         try Self.expect(crawlKitStatus.databaseBytes == 36397056, "crawlkit database bytes map")
         try Self.expect(crawlKitStatus.counts.contains(CrawlCount(id: "messages", label: "Messages", value: 5052)), "crawlkit count array maps")
         try Self.expect(crawlKitStatus.databases.first?.id == "primary", "crawlkit databases map")
@@ -502,6 +505,54 @@ enum CrawlBarSelfTest {
         try Self.expect(
             result.stdout.split(separator: ":").contains(Substring(localBinURL.path)),
             "runner passes normalized fallback PATH to crawlers")
+    }
+
+    private static func testRemoteSshExecutionBuildsCommand() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("crawlbar-remote-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let scriptURL = directory.appendingPathComponent("fake-ssh")
+        try Data("""
+        #!/bin/sh
+        printf '%s' "$*"
+        """.utf8).write(to: scriptURL)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
+
+        let manifest = CrawlAppManifest(
+            id: CrawlAppID(rawValue: "wacli-test"),
+            displayName: "WhatsApp Test",
+            description: "A remote WhatsApp crawler",
+            binary: .init(name: "wacli"),
+            execution: .init(
+                kind: .ssh,
+                targetConfigID: "remote_target",
+                runAsConfigID: "remote_run_as",
+                remoteBinary: "wacli"),
+            branding: .init(symbolName: "message.circle", accentColor: "#25D366"),
+            paths: .init(),
+            commands: ["search": ["--account", "{config:account}", "--read-only", "--json", "messages", "search"]],
+            capabilities: [.search],
+            configOptions: [
+                .init(id: "account", label: "Account", defaultValue: "personal"),
+            ])
+        let installation = CrawlAppInstallation(
+            manifest: manifest,
+            binaryPath: scriptURL.path,
+            configValues: [
+                "remote_target": "user@example-host",
+                "remote_run_as": "crawl",
+            ])
+        let result = try CrawlCommandRunner().run(
+            installation: installation,
+            action: "search",
+            extraArguments: ["hello", "world"],
+            timeoutSeconds: 5)
+
+        try Self.expect(
+            result.stdout == "user@example-host 'sudo' '-u' 'crawl' '-H' '--' 'wacli' '--account' 'personal' '--read-only' '--json' 'messages' 'search' 'hello world'",
+            "remote SSH execution builds a quoted remote command with config defaults")
     }
 
     private static func testQueryActionResolverSkipsSQLForPlainText() throws {
@@ -748,6 +799,56 @@ enum CrawlBarSelfTest {
         try Self.expect(
             !graincrawlActionFailure.isRecoverableGraincrawlSourceFailure,
             "graincrawl action failures stay visible as errors")
+    }
+
+    private static func testStatusMapperNormalizesWacliDoctorOutput() throws {
+        let result = CrawlCommandResult(
+            appID: CrawlAppID(rawValue: "wacli-test"),
+            action: "status",
+            exitCode: 0,
+            stdout: """
+            {"success":true,"data":{"store_dir":"/tmp/wacli-store","lock_held":true,"connection_state":"locked_by_other_process","authenticated":true,"fts_enabled":false,"store":{"messages":6991,"chats":677,"contacts":514,"groups":250,"last_sync_at":"2026-05-23T11:32:16Z"}},"error":null}
+            """,
+            stderr: "",
+            startedAt: Date(timeIntervalSince1970: 1_775_000_000),
+            finishedAt: Date(timeIntervalSince1970: 1_775_000_001))
+        let manifest = CrawlAppManifest(
+            id: result.appID,
+            displayName: "WhatsApp Test",
+            description: "Remote WhatsApp archive",
+            binary: .init(name: "ssh"),
+            branding: .init(symbolName: "message.circle", accentColor: "#25D366"),
+            paths: .init(),
+            commands: ["status": ["host", "wacli --account test --read-only doctor --json"]],
+            capabilities: [.status])
+        let status = CrawlStatusMapper().status(from: result, manifest: manifest)
+
+        try Self.expect(status.state == .current || status.state == .stale, "wacli doctor maps to a usable state")
+        try Self.expect(status.summary == "6991 messages, 677 chats", "wacli doctor maps store counts")
+        try Self.expect(status.databasePath == "/tmp/wacli-store", "wacli doctor maps store path")
+        try Self.expect(status.lastSyncAt != nil, "wacli doctor maps last sync")
+        try Self.expect(status.warnings.contains("Store is locked by locked_by_other_process"), "wacli lock is a warning")
+        try Self.expect(status.warnings.contains("Full-text search is not enabled"), "wacli FTS state is a warning")
+    }
+
+    private static func testStatusMapperTrustsCrawlerState() throws {
+        let result = CrawlCommandResult(
+            appID: BuiltInCrawlApps.discrawlID,
+            action: "status",
+            exitCode: 0,
+            stdout: """
+            {"schema_version":"crawlkit.control.v1","state":"current","summary":"ok","last_sync_at":"2026-05-09T05:45:44Z","counts":[{"id":"messages","label":"Messages","value":10}]}
+            """,
+            stderr: "",
+            startedAt: Date(timeIntervalSince1970: 1_775_000_000),
+            finishedAt: Date(timeIntervalSince1970: 1_775_000_001))
+        let status = CrawlStatusMapper().status(
+            from: result,
+            manifest: BuiltInCrawlApps.discrawl,
+            staleAfterSeconds: 900)
+
+        try Self.expect(status.state == .current, "explicit crawler state wins over stale timestamp heuristics")
+        try Self.expect(status.freshness?.status == .stale, "stale timestamp can still be shown as metadata")
     }
 
     private static func testActionLogStoreReadsRecentResults() throws {
