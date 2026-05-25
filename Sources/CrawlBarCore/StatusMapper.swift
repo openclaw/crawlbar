@@ -19,6 +19,9 @@ public struct CrawlStatusMapper: Sendable {
         }
 
         guard let object = self.parseObject(result.stdout) else {
+            if manifest.id == BuiltInCrawlApps.birdclawID {
+                return self.birdStatusText(result)
+            }
             return CrawlAppStatus(
                 appID: result.appID,
                 state: .unknown,
@@ -144,6 +147,51 @@ public struct CrawlStatusMapper: Sendable {
             state: state,
             summary: summary,
             warnings: warnings)
+    }
+
+    private func birdStatusText(_ result: CrawlCommandResult) -> CrawlAppStatus {
+        let output = result.stdout.nilIfBlank ?? result.stderr.nilIfBlank ?? ""
+        let lowercased = output.lowercased()
+        let hasAuthToken = lowercased.contains("[ok] auth_token")
+            || lowercased.contains("auth_token:")
+        let hasCSRFToken = lowercased.contains("[ok] ct0")
+            || lowercased.contains("ct0:")
+        let ready = lowercased.contains("ready to tweet")
+            || (hasAuthToken && hasCSRFToken)
+        let source = output.split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { $0.lowercased().hasPrefix("source:") }
+        let warningLines = output.split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { line in
+                let lowered = line.lowercased()
+                return lowered.contains("[warn]") || lowered.hasPrefix("- ")
+            }
+            .map { line in
+                line.replacingOccurrences(of: "[warn]", with: "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            .map { line in
+                line.hasPrefix("- ")
+                    ? String(line.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines)
+                    : line
+            }
+            .filter { !$0.isEmpty && $0.lowercased() != "warnings:" }
+
+        if ready {
+            return CrawlAppStatus(
+                appID: result.appID,
+                state: .current,
+                summary: source.map { "X cookies available via bird (\($0.dropFirst("source:".count).trimmingCharacters(in: .whitespacesAndNewlines)))" }
+                    ?? "X cookies available via bird",
+                warnings: warningLines)
+        }
+
+        return CrawlAppStatus(
+            appID: result.appID,
+            state: .needsAuth,
+            summary: "X browser cookies not found",
+            warnings: warningLines.isEmpty ? ["bird check did not find usable X cookies"] : warningLines)
     }
 
     private func discrawlStatus(_ object: [String: Any], result: CrawlCommandResult, staleAfterSeconds: Int?) -> CrawlAppStatus {

@@ -113,7 +113,9 @@ public struct CrawlCommandRunner: @unchecked Sendable {
         timeoutSeconds: TimeInterval = 120)
         throws -> CrawlCommandResult
     {
-        guard var arguments = installation.manifest.commands[action] else {
+        guard var arguments = Self.commandOverride(for: installation, action: action)
+            ?? installation.manifest.commands[action]
+        else {
             throw CrawlCommandRunnerError.commandUnavailable(appID: installation.id, action: action)
         }
         arguments = Self.commandArguments(
@@ -124,8 +126,15 @@ public struct CrawlCommandRunner: @unchecked Sendable {
         arguments = try Self.interpolatedArguments(arguments, installation: installation)
 
         let executionKind = installation.manifest.executionKind(configValues: installation.configValues)
-        let executableName = installation.binaryPath
-            ?? (executionKind == .ssh ? "ssh" : installation.manifest.binary.name)
+        let effectiveBinaryName = Self.effectiveBinaryName(for: installation)
+        let executableName: String
+        if executionKind == .ssh {
+            executableName = installation.binaryPath ?? "ssh"
+        } else if effectiveBinaryName != installation.manifest.binary.name {
+            executableName = effectiveBinaryName
+        } else {
+            executableName = installation.binaryPath ?? effectiveBinaryName
+        }
         guard let executablePath = self.resolver.resolve(executableName) else {
             throw CrawlCommandRunnerError.executableNotFound(executableName)
         }
@@ -146,7 +155,8 @@ public struct CrawlCommandRunner: @unchecked Sendable {
         if executionKind == .ssh {
             arguments = try Self.sshArguments(
                 for: installation,
-                remoteArguments: arguments)
+                remoteArguments: arguments,
+                remoteBinaryOverride: effectiveBinaryName)
         }
 
         return try self.runProcess(
@@ -280,7 +290,8 @@ public struct CrawlCommandRunner: @unchecked Sendable {
 
     private static func sshArguments(
         for installation: CrawlAppInstallation,
-        remoteArguments: [String])
+        remoteArguments: [String],
+        remoteBinaryOverride: String? = nil)
         throws -> [String]
     {
         guard let execution = installation.manifest.execution else {
@@ -294,7 +305,9 @@ public struct CrawlCommandRunner: @unchecked Sendable {
             throw CrawlCommandRunnerError.invalidRemoteTarget(appID: installation.id, target: target)
         }
 
-        let remoteBinary = execution.remoteBinary?.nilIfBlank ?? installation.manifest.binary.name
+        let remoteBinary = remoteBinaryOverride?.nilIfBlank
+            ?? execution.remoteBinary?.nilIfBlank
+            ?? installation.manifest.binary.name
         var commandParts = [remoteBinary] + remoteArguments
         if let runAsOptionID = execution.runAsConfigID?.nilIfBlank,
            let runAs = Self.configValue(runAsOptionID, installation: installation)
@@ -317,6 +330,33 @@ public struct CrawlCommandRunner: @unchecked Sendable {
             return value
         }
         return installation.manifest.configOptions.first { $0.id == optionID }?.defaultValue?.nilIfBlank
+    }
+
+    private static func commandOverride(for installation: CrawlAppInstallation, action: String) -> [String]? {
+        guard installation.id == BuiltInCrawlApps.birdclawID,
+              Self.xAccessPath(for: installation) == "birdclaw"
+        else { return nil }
+        switch action {
+        case "status", "doctor":
+            return ["auth", "status", "--json"]
+        case "search", "query":
+            return ["--json", "search", "tweets"]
+        default:
+            return nil
+        }
+    }
+
+    private static func effectiveBinaryName(for installation: CrawlAppInstallation) -> String {
+        guard installation.id == BuiltInCrawlApps.birdclawID else {
+            return installation.manifest.binary.name
+        }
+        return Self.xAccessPath(for: installation) == "birdclaw" ? "birdclaw" : "bird"
+    }
+
+    private static func xAccessPath(for installation: CrawlAppInstallation) -> String {
+        (Self.configValue("access_path", installation: installation) ?? "bird")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
     }
 
     private static func wacliSearchNeedsJoinedQuery(

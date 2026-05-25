@@ -165,7 +165,7 @@ enum CrawlBarSelfTest {
         try Self.expect(BuiltInCrawlApps.slacrawl.install?.package == "vincentkoc/tap/slacrawl", "built-in install metadata exists")
         try Self.expect(BuiltInCrawlApps.gogcli.availability == .available, "gog connector is available")
         try Self.expect(BuiltInCrawlApps.gogcli.binary.name == "gog", "gogcli app id uses gog executable")
-        try Self.expect(BuiltInCrawlApps.birdclaw.binary.name == "birdclaw", "birdclaw app id uses birdclaw executable")
+        try Self.expect(BuiltInCrawlApps.birdclaw.binary.name == "bird", "X app id uses bird executable")
         try Self.expect(BuiltInCrawlApps.graincrawl.availability == .available, "graincrawl is available")
         try Self.expect(BuiltInCrawlApps.graincrawl.commands["status"] == ["status", "--json"], "graincrawl uses crawlkit status command")
         try Self.expect(
@@ -573,6 +573,23 @@ enum CrawlBarSelfTest {
         try Self.expect(
             localResult.stdout == "--account personal --read-only --json messages search hello world",
             "local execution mode bypasses SSH and uses the crawler binary")
+
+        let remoteBirdclawInstallation = CrawlAppInstallation(
+            manifest: BuiltInCrawlApps.birdclaw,
+            binaryPath: scriptURL.path,
+            configValues: [
+                "access_path": "birdclaw",
+                "execution_mode": "remote",
+                "remote_target": "user@example-host",
+                "remote_run_as": "crawl",
+            ])
+        let birdclawResult = try CrawlCommandRunner().run(
+            installation: remoteBirdclawInstallation,
+            action: "status",
+            timeoutSeconds: 5)
+        try Self.expect(
+            birdclawResult.stdout == #"user@example-host 'sudo' '-u' 'crawl' '-H' '--' 'sh' '-lc' 'cd ~ && exec '\''birdclaw'\'' '\''auth'\'' '\''status'\'' '\''--json'\'''"#,
+            "X remote execution can use the Birdclaw/xurl access path")
     }
 
     private static func testQueryActionResolverSkipsSQLForPlainText() throws {
@@ -899,6 +916,27 @@ enum CrawlBarSelfTest {
         try Self.expect(status.summary == "xurl not installed. local mode active.", "birdclaw auth status has a useful summary")
         try Self.expect(status.warnings.contains("Transport: local"), "birdclaw auth status exposes transport")
         try Self.expect(status.warnings.contains("xurl not installed. local mode active."), "birdclaw auth status preserves transport warning")
+
+        let birdResult = CrawlCommandResult(
+            appID: BuiltInCrawlApps.birdclawID,
+            action: "status",
+            exitCode: 0,
+            stdout: """
+            [info] Credential check
+            [ok] auth_token: abc...
+            [ok] ct0: def...
+            source: Chrome default profile
+            [warn] Warnings:
+               - No Twitter cookies found in Safari.
+            [ok] Ready to tweet!
+            """,
+            stderr: "",
+            startedAt: Date(),
+            finishedAt: Date())
+        let birdStatus = CrawlStatusMapper().status(from: birdResult, manifest: BuiltInCrawlApps.birdclaw)
+        try Self.expect(birdStatus.state == .current, "bird check text maps to current when cookies are usable")
+        try Self.expect(birdStatus.summary == "X cookies available via bird (Chrome default profile)", "bird check text exposes cookie source")
+        try Self.expect(birdStatus.warnings.contains("No Twitter cookies found in Safari."), "bird check warnings are preserved")
     }
 
     private static func testStatusMapperTrustsCrawlerState() throws {
