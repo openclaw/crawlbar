@@ -211,8 +211,8 @@ public enum BuiltInCrawlApps {
         configOptions: [
             .init(id: "execution_mode", label: "Run location", kind: .choice, help: "Run gog on this Mac or over SSH on another machine.", defaultValue: "local", choices: ["local", "remote"]),
             .init(id: "remote_target", label: "SSH target", help: "SSH target that can run gog.", placeholder: "user@example-host"),
-            .init(id: "remote_run_as", label: "Run as user", help: "Optional remote Unix user for sudo -u, when gog is installed under a service account.", placeholder: "openclaw"),
-            .init(id: "remote_env_file", label: "Remote env file", help: "Optional env file to source before running gog on the remote host.", placeholder: "/run/openclaw/env"),
+            .init(id: "remote_run_as", label: "Run as user", help: "Optional remote Unix user for sudo -u, when gog is installed under a service account.", placeholder: "service-user"),
+            .init(id: "remote_env_file", label: "Remote env file", help: "Optional env file to source before running gog on the remote host.", placeholder: "/run/service/env"),
         ],
         configSections: [
             .init(id: "execution", title: "Execution", optionIDs: ["execution_mode"]),
