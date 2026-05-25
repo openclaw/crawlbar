@@ -138,6 +138,7 @@ laptop-only setup and a server-hosted archive:
     "kind_config_id": "execution_mode",
     "target_config_id": "remote_target",
     "run_as_config_id": "remote_run_as",
+    "remote_env_file_config_id": "remote_env_file",
     "remote_binary": "wacli"
   },
   "commands": {
@@ -155,6 +156,7 @@ laptop-only setup and a server-hosted archive:
     },
     {"id": "remote_target", "label": "SSH target", "placeholder": "user@example-host"},
     {"id": "remote_run_as", "label": "Run as user", "placeholder": "crawl"},
+    {"id": "remote_env_file", "label": "Remote env file", "placeholder": "/run/service/env"},
     {"id": "account", "label": "wacli account", "default_value": "personal"}
   ]
 }
@@ -166,6 +168,10 @@ resolves local `ssh`, then runs `remote_binary` on the remote host. Command
 arguments are shell-quoted by CrawlBar. `{config:option_id}` placeholders are
 filled from crawler settings or option defaults. Missing required placeholders
 surface as setup-needed status, not as auth failures.
+
+If `remote_env_file_config_id` is set and the referenced option has a value,
+CrawlBar sources that file before executing the remote command. This supports
+server-side credentials that are already hydrated into a service env file.
 
 ## Privacy
 

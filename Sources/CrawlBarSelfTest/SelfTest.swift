@@ -590,6 +590,43 @@ enum CrawlBarSelfTest {
         try Self.expect(
             birdclawResult.stdout == #"user@example-host 'sudo' '-u' 'crawl' '-H' '--' 'sh' '-lc' 'cd ~ && exec '\''birdclaw'\'' '\''auth'\'' '\''status'\'' '\''--json'\'''"#,
             "X remote execution can use the Birdclaw/xurl access path")
+
+        let envManifest = CrawlAppManifest(
+            id: CrawlAppID(rawValue: "envcrawl-test"),
+            displayName: "Env Crawl Test",
+            description: "A remote crawler that needs an env file",
+            binary: .init(name: "envcrawl"),
+            execution: .init(
+                kind: .local,
+                kindConfigID: "execution_mode",
+                targetConfigID: "remote_target",
+                runAsConfigID: "remote_run_as",
+                remoteEnvFileConfigID: "remote_env_file",
+                remoteBinary: "envcrawl"),
+            branding: .init(symbolName: "terminal", accentColor: "#123456"),
+            paths: .init(),
+            commands: ["status": ["status", "--json"]],
+            capabilities: [.status],
+            configOptions: [
+                .init(id: "execution_mode", label: "Run Location", kind: .choice, defaultValue: "local", choices: ["local", "remote"]),
+                .init(id: "remote_env_file", label: "Remote Env File"),
+            ])
+        let envInstallation = CrawlAppInstallation(
+            manifest: envManifest,
+            binaryPath: scriptURL.path,
+            configValues: [
+                "execution_mode": "remote",
+                "remote_target": "user@example-host",
+                "remote_run_as": "crawl",
+                "remote_env_file": "/run/example/env",
+            ])
+        let envResult = try CrawlCommandRunner().run(
+            installation: envInstallation,
+            action: "status",
+            timeoutSeconds: 5)
+        try Self.expect(
+            envResult.stdout == #"user@example-host 'sudo' '-u' 'crawl' '-H' '--' 'sh' '-lc' 'cd ~ && set -a && . '\''/run/example/env'\'' && set +a && exec '\''envcrawl'\'' '\''status'\'' '\''--json'\'''"#,
+            "remote SSH execution can source an env file before exec")
     }
 
     private static func testQueryActionResolverSkipsSQLForPlainText() throws {
@@ -898,6 +935,21 @@ enum CrawlBarSelfTest {
         let ready = CrawlStatusMapper().status(from: readyResult, manifest: BuiltInCrawlApps.gogcli)
         try Self.expect(ready.state == .current, "gog auth status with credentials maps to current")
         try Self.expect(ready.summary == "Google account user@example.com is ready", "gog auth status shows the configured account")
+
+        let doctorResult = CrawlCommandResult(
+            appID: BuiltInCrawlApps.gogcliID,
+            action: "status",
+            exitCode: 0,
+            stdout: """
+            {"checks":[{"name":"config.path","status":"warn","detail":"/tmp/gog/config.json (missing)"},{"name":"keyring.open","status":"ok","detail":"opened"},{"name":"tokens","status":"ok","detail":"4 readable OAuth tokens of 4 stored token accounts"},{"name":"refresh.default.user@example.com","status":"ok","detail":"refresh token exchange succeeded"}],"status":"warn"}
+            """,
+            stderr: "",
+            startedAt: Date(),
+            finishedAt: Date())
+        let doctor = CrawlStatusMapper().status(from: doctorResult, manifest: BuiltInCrawlApps.gogcli)
+        try Self.expect(doctor.state == .current, "gog doctor maps readable refreshable tokens to current")
+        try Self.expect(doctor.summary == "4 Google OAuth accounts readable", "gog doctor summarizes readable tokens")
+        try Self.expect(doctor.warnings.contains("config.path: /tmp/gog/config.json (missing)"), "gog doctor preserves non-auth warnings")
     }
 
     private static func testStatusMapperNormalizesBirdclawAuthStatus() throws {

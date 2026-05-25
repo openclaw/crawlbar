@@ -105,6 +105,10 @@ public struct CrawlStatusMapper: Sendable {
     }
 
     private func gogStatus(_ object: [String: Any], result: CrawlCommandResult) -> CrawlAppStatus {
+        if let checks = object["checks"] as? [[String: Any]] {
+            return self.gogDoctorStatus(checks, result: result)
+        }
+
         let account = self.firstObject(["account"], in: object) ?? [:]
         let config = self.firstObject(["config"], in: object) ?? [:]
         let credentialsExist = self.boolValue(["credentials_exists"], in: account) ?? false
@@ -125,6 +129,47 @@ public struct CrawlStatusMapper: Sendable {
             state: state,
             summary: summary,
             configPath: configPath,
+            warnings: warnings)
+    }
+
+    private func gogDoctorStatus(_ checks: [[String: Any]], result: CrawlCommandResult) -> CrawlAppStatus {
+        let readableTokens = checks.first { ($0["name"] as? String) == "tokens" && ($0["status"] as? String) == "ok" }
+        let refreshErrors = checks.filter { check in
+            guard let name = check["name"] as? String else { return false }
+            return name.hasPrefix("refresh.") && (check["status"] as? String) == "error"
+        }
+        let warnings = checks.compactMap { check -> String? in
+            guard let status = check["status"] as? String,
+                  status != "ok",
+                  let name = check["name"] as? String
+            else { return nil }
+            let detail = (check["detail"] as? String)?.nilIfBlank
+            return [name, detail].compactMap { $0 }.joined(separator: ": ")
+        }
+
+        let state: CrawlAppState
+        let summary: String
+        if !refreshErrors.isEmpty {
+            state = .error
+            summary = "Google refresh token check failed"
+        } else if let readableTokens {
+            state = .current
+            if let detail = (readableTokens["detail"] as? String)?.nilIfBlank,
+               let count = detail.split(separator: " ").first
+            {
+                summary = "\(count) Google OAuth accounts readable"
+            } else {
+                summary = "Google OAuth accounts readable"
+            }
+        } else {
+            state = .needsAuth
+            summary = "Google account needs auth"
+        }
+
+        return CrawlAppStatus(
+            appID: result.appID,
+            state: state,
+            summary: summary,
             warnings: warnings)
     }
 

@@ -47,6 +47,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         public var kindConfigID: String?
         public var targetConfigID: String?
         public var runAsConfigID: String?
+        public var remoteEnvFileConfigID: String?
         public var remoteBinary: String?
 
         public init(
@@ -54,12 +55,14 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
             kindConfigID: String? = nil,
             targetConfigID: String? = nil,
             runAsConfigID: String? = nil,
+            remoteEnvFileConfigID: String? = nil,
             remoteBinary: String? = nil)
         {
             self.kind = kind
             self.kindConfigID = kindConfigID
             self.targetConfigID = targetConfigID
             self.runAsConfigID = runAsConfigID
+            self.remoteEnvFileConfigID = remoteEnvFileConfigID
             self.remoteBinary = remoteBinary
         }
 
@@ -68,6 +71,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
             case kindConfigID = "kind_config_id"
             case targetConfigID = "target_config_id"
             case runAsConfigID = "run_as_config_id"
+            case remoteEnvFileConfigID = "remote_env_file_config_id"
             case remoteBinary = "remote_binary"
         }
     }

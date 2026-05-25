@@ -194,6 +194,7 @@ public enum BuiltInCrawlApps {
             kindConfigID: "execution_mode",
             targetConfigID: "remote_target",
             runAsConfigID: "remote_run_as",
+            remoteEnvFileConfigID: "remote_env_file",
             remoteBinary: "gog"),
         branding: .init(symbolName: "g.circle", accentColor: "#4285F4"),
         paths: .init(
@@ -201,7 +202,7 @@ public enum BuiltInCrawlApps {
             defaultCache: "~/Library/Caches/gogcli",
             defaultLogs: "~/Library/Logs/gogcli"),
         commands: [
-            "status": ["--no-input", "auth", "status", "--json"],
+            "status": ["--no-input", "auth", "doctor", "--check", "--json"],
             "doctor": ["--no-input", "auth", "doctor", "--check", "--json"],
             "search": ["--no-input", "search", "--json"],
         ],
@@ -211,10 +212,11 @@ public enum BuiltInCrawlApps {
             .init(id: "execution_mode", label: "Run location", kind: .choice, help: "Run gog on this Mac or over SSH on another machine.", defaultValue: "local", choices: ["local", "remote"]),
             .init(id: "remote_target", label: "SSH target", help: "SSH target that can run gog.", placeholder: "user@example-host"),
             .init(id: "remote_run_as", label: "Run as user", help: "Optional remote Unix user for sudo -u, when gog is installed under a service account.", placeholder: "openclaw"),
+            .init(id: "remote_env_file", label: "Remote env file", help: "Optional env file to source before running gog on the remote host.", placeholder: "/run/openclaw/env"),
         ],
         configSections: [
             .init(id: "execution", title: "Execution", optionIDs: ["execution_mode"]),
-            .init(id: "remote", title: "Remote Host", optionIDs: ["remote_target", "remote_run_as"]),
+            .init(id: "remote", title: "Remote Host", optionIDs: ["remote_target", "remote_run_as", "remote_env_file"]),
         ])
 
     public static let wacli = CrawlAppManifest(

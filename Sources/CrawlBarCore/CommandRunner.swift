@@ -309,16 +309,30 @@ public struct CrawlCommandRunner: @unchecked Sendable {
             ?? execution.remoteBinary?.nilIfBlank
             ?? installation.manifest.binary.name
         var commandParts = [remoteBinary] + remoteArguments
+        let envFile = execution.remoteEnvFileConfigID
+            .flatMap { Self.configValue($0, installation: installation) }
+        let userCommand = Self.remoteShellCommand(commandParts: commandParts, envFile: envFile)
         if let runAsOptionID = execution.runAsConfigID?.nilIfBlank,
            let runAs = Self.configValue(runAsOptionID, installation: installation)
         {
             guard !runAs.contains(where: { $0.isWhitespace }) else {
                 throw CrawlCommandRunnerError.invalidRemoteTarget(appID: installation.id, target: runAs)
             }
-            let userCommand = "cd ~ && exec " + commandParts.map(Self.shellQuoted).joined(separator: " ")
             commandParts = ["sudo", "-u", runAs, "-H", "--", "sh", "-lc", userCommand]
+            return [target, commandParts.map(Self.shellQuoted).joined(separator: " ")]
+        }
+        if envFile?.nilIfBlank != nil {
+            return [target, ["sh", "-lc", userCommand].map(Self.shellQuoted).joined(separator: " ")]
         }
         return [target, commandParts.map(Self.shellQuoted).joined(separator: " ")]
+    }
+
+    private static func remoteShellCommand(commandParts: [String], envFile: String?) -> String {
+        let command = commandParts.map(Self.shellQuoted).joined(separator: " ")
+        guard let envFile = envFile?.nilIfBlank else {
+            return "cd ~ && exec " + command
+        }
+        return "cd ~ && set -a && . \(Self.shellQuoted(envFile)) && set +a && exec \(command)"
     }
 
     private static func shellQuoted(_ value: String) -> String {
