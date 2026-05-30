@@ -496,6 +496,10 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
             return [.maintain]
         case "git-share":
             return [.publish, .subscribe, .update]
+        case "remote", "remote-status", "remote-archives", "remote_archive":
+            return [.remoteArchive]
+        case "cloud", "cloud-publish", "cloud_publish":
+            return [.cloudPublish]
         default:
             return []
         }
@@ -522,6 +526,8 @@ public enum CrawlAppCapability: String, Codable, Equatable, Sendable, CaseIterab
     case desktopCache = "desktop_cache"
     case exportMarkdown = "export_markdown"
     case exportDatabase = "export_database"
+    case remoteArchive = "remote_archive"
+    case cloudPublish = "cloud_publish"
     case maintain
 }
 
@@ -610,10 +616,119 @@ public struct CrawlShareStatus: Codable, Equatable, Sendable {
     }
 }
 
+public struct CrawlRemoteStatus: Codable, Equatable, Sendable {
+    public var enabled: Bool
+    public var mode: String?
+    public var endpoint: String?
+    public var archive: String?
+    public var lastIngestAt: Date?
+    public var lastSyncAt: Date?
+    public var needsUpdate: Bool?
+
+    public init(
+        enabled: Bool,
+        mode: String? = nil,
+        endpoint: String? = nil,
+        archive: String? = nil,
+        lastIngestAt: Date? = nil,
+        lastSyncAt: Date? = nil,
+        needsUpdate: Bool? = nil)
+    {
+        self.enabled = enabled
+        self.mode = mode
+        self.endpoint = endpoint
+        self.archive = archive
+        self.lastIngestAt = lastIngestAt
+        self.lastSyncAt = lastSyncAt
+        self.needsUpdate = needsUpdate
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case enabled
+        case mode
+        case endpoint
+        case archive
+        case lastIngestAt = "last_ingest_at"
+        case lastSyncAt = "last_sync_at"
+        case needsUpdate = "needs_update"
+    }
+}
+
+public struct CrawlSQLiteObjectStatus: Codable, Equatable, Sendable {
+    public var key: String?
+    public var contentType: String?
+    public var bytes: Int?
+    public var uploadedAt: Date?
+
+    public init(key: String? = nil, contentType: String? = nil, bytes: Int? = nil, uploadedAt: Date? = nil) {
+        self.key = key
+        self.contentType = contentType
+        self.bytes = bytes
+        self.uploadedAt = uploadedAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case key
+        case contentType = "content_type"
+        case bytes
+        case uploadedAt = "uploaded_at"
+    }
+}
+
+public struct CrawlSQLiteBundleStatus: Codable, Equatable, Sendable {
+    public var key: String?
+    public var contentType: String?
+    public var format: String?
+    public var compression: String?
+    public var rawBytes: Int?
+    public var compressedBytes: Int?
+    public var partCount: Int?
+    public var uploadedAt: Date?
+    public var generatedAt: Date?
+
+    public init(
+        key: String? = nil,
+        contentType: String? = nil,
+        format: String? = nil,
+        compression: String? = nil,
+        rawBytes: Int? = nil,
+        compressedBytes: Int? = nil,
+        partCount: Int? = nil,
+        uploadedAt: Date? = nil,
+        generatedAt: Date? = nil)
+    {
+        self.key = key
+        self.contentType = contentType
+        self.format = format
+        self.compression = compression
+        self.rawBytes = rawBytes
+        self.compressedBytes = compressedBytes
+        self.partCount = partCount
+        self.uploadedAt = uploadedAt
+        self.generatedAt = generatedAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case key
+        case contentType = "content_type"
+        case format
+        case compression
+        case rawBytes = "raw_bytes"
+        case compressedBytes = "compressed_bytes"
+        case partCount = "part_count"
+        case uploadedAt = "uploaded_at"
+        case generatedAt = "generated_at"
+    }
+}
+
 public enum CrawlDatabaseKind: String, Codable, Equatable, Sendable {
     case sqlite
     case cache
     case logical
+    case remote
+    case d1
+    case cloudflareD1 = "cloudflare-d1"
+    case sqliteBundle = "sqlite_bundle"
 }
 
 public struct CrawlDatabaseResource: Codable, Equatable, Sendable, Identifiable {
@@ -622,6 +737,8 @@ public struct CrawlDatabaseResource: Codable, Equatable, Sendable, Identifiable 
     public var kind: CrawlDatabaseKind
     public var role: String?
     public var path: String?
+    public var endpoint: String?
+    public var archive: String?
     public var isPrimary: Bool
     public var bytes: Int?
     public var modifiedAt: Date?
@@ -633,6 +750,8 @@ public struct CrawlDatabaseResource: Codable, Equatable, Sendable, Identifiable 
         kind: CrawlDatabaseKind,
         role: String? = nil,
         path: String? = nil,
+        endpoint: String? = nil,
+        archive: String? = nil,
         isPrimary: Bool = false,
         bytes: Int? = nil,
         modifiedAt: Date? = nil,
@@ -643,6 +762,8 @@ public struct CrawlDatabaseResource: Codable, Equatable, Sendable, Identifiable 
         self.kind = kind
         self.role = role
         self.path = path
+        self.endpoint = endpoint
+        self.archive = archive
         self.isPrimary = isPrimary
         self.bytes = bytes
         self.modifiedAt = modifiedAt
@@ -655,6 +776,8 @@ public struct CrawlDatabaseResource: Codable, Equatable, Sendable, Identifiable 
         case kind
         case role
         case path
+        case endpoint
+        case archive
         case isPrimary = "is_primary"
         case bytes
         case modifiedAt = "modified_at"
@@ -679,6 +802,9 @@ public struct CrawlAppStatus: Codable, Equatable, Sendable, Identifiable {
     public var databases: [CrawlDatabaseResource]
     public var freshness: CrawlFreshness?
     public var share: CrawlShareStatus?
+    public var remote: CrawlRemoteStatus?
+    public var sqliteObject: CrawlSQLiteObjectStatus?
+    public var sqliteBundle: CrawlSQLiteBundleStatus?
     public var warnings: [String]
     public var errors: [String]
 
@@ -703,6 +829,9 @@ public struct CrawlAppStatus: Codable, Equatable, Sendable, Identifiable {
         databases: [CrawlDatabaseResource] = [],
         freshness: CrawlFreshness? = nil,
         share: CrawlShareStatus? = nil,
+        remote: CrawlRemoteStatus? = nil,
+        sqliteObject: CrawlSQLiteObjectStatus? = nil,
+        sqliteBundle: CrawlSQLiteBundleStatus? = nil,
         warnings: [String] = [],
         errors: [String] = [])
     {
@@ -722,6 +851,9 @@ public struct CrawlAppStatus: Codable, Equatable, Sendable, Identifiable {
         self.databases = databases
         self.freshness = freshness
         self.share = share
+        self.remote = remote
+        self.sqliteObject = sqliteObject
+        self.sqliteBundle = sqliteBundle
         self.warnings = warnings
         self.errors = errors
     }
@@ -743,6 +875,9 @@ public struct CrawlAppStatus: Codable, Equatable, Sendable, Identifiable {
         case databases
         case freshness
         case share
+        case remote
+        case sqliteObject = "sqlite_object"
+        case sqliteBundle = "sqlite_bundle"
         case warnings
         case errors
     }
@@ -780,6 +915,9 @@ public extension CrawlAppStatus {
             databases: self.databases,
             freshness: self.freshness,
             share: self.share,
+            remote: self.remote,
+            sqliteObject: self.sqliteObject,
+            sqliteBundle: self.sqliteBundle,
             warnings: Self.mergedMessages(failure.warnings, self.warnings),
             errors: Self.mergedMessages(failure.errors, self.errors))
     }
@@ -820,6 +958,9 @@ public extension CrawlAppStatus {
         score += self.databases.isEmpty ? 0 : 3
         score += self.freshness == nil ? 0 : 1
         score += self.share == nil ? 0 : 2
+        score += self.remote == nil ? 0 : 3
+        score += self.sqliteObject == nil ? 0 : 2
+        score += self.sqliteBundle == nil ? 0 : 3
         return score
     }
 

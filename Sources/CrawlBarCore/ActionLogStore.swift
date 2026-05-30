@@ -39,12 +39,12 @@ public struct CrawlActionLogStore: @unchecked Sendable {
             return []
         }
         return urls
+            .lazy
             .filter { $0.pathExtension == "json" }
-            .sorted { lhs, rhs in
-                self.modificationDate(lhs) > self.modificationDate(rhs)
-            }
+            .map { ($0, self.modificationDate($0)) }
+            .sorted { $0.1 > $1.1 }
             .prefix(limit)
-            .map { $0 }
+            .map(\.0)
     }
 
     public func recentResults(limit: Int = 20) -> [CrawlCommandResult] {

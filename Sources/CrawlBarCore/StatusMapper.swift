@@ -40,10 +40,14 @@ public struct CrawlStatusMapper: Sendable {
                 status = self.slacrawlStatus(object, result: result, staleAfterSeconds: staleAfterSeconds)
             case BuiltInCrawlApps.discrawlID:
                 status = self.discrawlStatus(object, result: result, staleAfterSeconds: staleAfterSeconds)
+            case BuiltInCrawlApps.telecrawlID:
+                status = self.telecrawlStatus(object, result: result, staleAfterSeconds: staleAfterSeconds)
             case BuiltInCrawlApps.notcrawlID:
                 status = self.notcrawlStatus(object, result: result, staleAfterSeconds: staleAfterSeconds)
             case BuiltInCrawlApps.gogcliID:
-                status = self.gogStatus(object, result: result)
+                status = self.gogcliStatus(object, result: result, staleAfterSeconds: staleAfterSeconds)
+            case BuiltInCrawlApps.wacliID:
+                status = self.wacliStatus(object, result: result, staleAfterSeconds: staleAfterSeconds)
             case BuiltInCrawlApps.birdclawID:
                 status = self.birdclawStatus(object, result: result)
             default:
@@ -65,7 +69,10 @@ public struct CrawlStatusMapper: Sendable {
             self.count("repositories", "Repositories", ["repo_count", "repository_count", "repositories"]),
         ].compactMap { self.value($0, in: object) }
 
+        let remote = self.remoteStatus(in: object)
         let lastSyncAt = self.dateValue(["last_sync_at", "updated_at", "generated_at"], in: object)
+            ?? remote?.lastSyncAt
+            ?? remote?.lastIngestAt
         return CrawlAppStatus(
             appID: result.appID,
             state: self.state(lastSyncAt: lastSyncAt, fallback: .current, staleAfterSeconds: staleAfterSeconds),
@@ -74,7 +81,11 @@ public struct CrawlStatusMapper: Sendable {
             databasePath: self.stringValue(["db_path", "database_path", "database"], in: object),
             lastSyncAt: lastSyncAt,
             counts: counts,
-            freshness: self.freshness(in: object, lastSyncAt: lastSyncAt, staleAfterSeconds: staleAfterSeconds))
+            freshness: self.freshness(in: object, lastSyncAt: lastSyncAt, staleAfterSeconds: staleAfterSeconds),
+            share: self.shareStatus(in: object),
+            remote: remote,
+            sqliteObject: self.sqliteObjectStatus(in: object),
+            sqliteBundle: self.sqliteBundleStatus(in: object))
     }
 
     private func slacrawlStatus(_ object: [String: Any], result: CrawlCommandResult, staleAfterSeconds: Int?) -> CrawlAppStatus {
@@ -87,7 +98,10 @@ public struct CrawlStatusMapper: Sendable {
 
         let counts = self.statusCounts(in: object, fallback: flatCounts)
         let databases = self.databaseResources(in: object)
+        let remote = self.remoteStatus(in: object)
         let lastSyncAt = self.dateValue(["last_sync_at", "latest_message_at", "updated_at"], in: object)
+            ?? remote?.lastSyncAt
+            ?? remote?.lastIngestAt
             ?? self.databaseModifiedAt(databases)
         let freshness = self.freshness(in: object, lastSyncAt: lastSyncAt, staleAfterSeconds: staleAfterSeconds)
         return CrawlAppStatus(
@@ -101,7 +115,10 @@ public struct CrawlStatusMapper: Sendable {
             counts: counts,
             databases: databases,
             freshness: freshness,
-            share: self.shareStatus(in: object))
+            share: self.shareStatus(in: object),
+            remote: remote,
+            sqliteObject: self.sqliteObjectStatus(in: object),
+            sqliteBundle: self.sqliteBundleStatus(in: object))
     }
 
     private func gogStatus(_ object: [String: Any], result: CrawlCommandResult) -> CrawlAppStatus {
@@ -251,7 +268,10 @@ public struct CrawlStatusMapper: Sendable {
 
         let counts = self.statusCounts(in: object, fallback: flatCounts)
         let databases = self.databaseResources(in: object)
+        let remote = self.remoteStatus(in: object)
         let lastSyncAt = self.dateValue(["last_sync_at", "latest_message_at", "updated_at"], in: object)
+            ?? remote?.lastSyncAt
+            ?? remote?.lastIngestAt
             ?? self.databaseModifiedAt(databases)
         let freshness = self.freshness(in: object, lastSyncAt: lastSyncAt, staleAfterSeconds: staleAfterSeconds)
         return CrawlAppStatus(
@@ -264,6 +284,36 @@ public struct CrawlStatusMapper: Sendable {
             lastSyncAt: lastSyncAt,
             counts: counts,
             databases: databases,
+            freshness: freshness,
+            share: self.shareStatus(in: object),
+            remote: remote,
+            sqliteObject: self.sqliteObjectStatus(in: object),
+            sqliteBundle: self.sqliteBundleStatus(in: object))
+    }
+
+    private func telecrawlStatus(_ object: [String: Any], result: CrawlCommandResult, staleAfterSeconds: Int?) -> CrawlAppStatus {
+        let counts = [
+            self.count("messages", "Messages", ["message_count", "messages"]),
+            self.count("chats", "Chats", ["chat_count", "chats"]),
+            self.count("folders", "Folders", ["folder_count", "folders"]),
+            self.count("topics", "Topics", ["topic_count", "topics"]),
+            self.count("unread_chats", "Unread Chats", ["unread_chat_count", "unread_chats"]),
+            self.count("unread_messages", "Unread Messages", ["unread_message_count", "unread_messages"]),
+            self.count("media_messages", "Media Messages", ["media_message_count", "media_messages"]),
+        ].compactMap { self.value($0, in: object) }
+
+        let lastSyncAt = self.dateValue(["last_sync_at", "last_import_at", "updated_at"], in: object)
+        let freshness = self.freshness(in: object, lastSyncAt: lastSyncAt, staleAfterSeconds: staleAfterSeconds)
+        return CrawlAppStatus(
+            appID: result.appID,
+            state: self.statusState(in: object, lastSyncAt: lastSyncAt, freshness: freshness, fallback: .current, staleAfterSeconds: staleAfterSeconds),
+            summary: self.stringValue(["summary", "message"], in: object) ?? self.summary(from: counts, fallback: "Telegram crawl status is current"),
+            configPath: self.stringValue(["config_path", "config"], in: object),
+            databasePath: self.stringValue(["db_path", "database_path", "database"], in: object),
+            databaseBytes: self.intValue(["db_bytes", "database_bytes"], in: object),
+            lastSyncAt: lastSyncAt,
+            lastImportAt: self.dateValue(["last_import_at"], in: object),
+            counts: counts,
             freshness: freshness,
             share: self.shareStatus(in: object))
     }
@@ -280,7 +330,10 @@ public struct CrawlStatusMapper: Sendable {
             self.count("raw_records", "Raw Records", ["raw_record_count", "raw_records"]),
         ].compactMap { self.value($0, in: object) }
 
+        let remote = self.remoteStatus(in: object)
         let lastSyncAt = self.dateValue(["last_sync_at", "last_import_at", "updated_at"], in: object)
+            ?? remote?.lastSyncAt
+            ?? remote?.lastIngestAt
         return CrawlAppStatus(
             appID: result.appID,
             state: self.state(lastSyncAt: lastSyncAt, fallback: .current, staleAfterSeconds: staleAfterSeconds),
@@ -292,12 +345,121 @@ public struct CrawlStatusMapper: Sendable {
             lastSyncAt: lastSyncAt,
             counts: counts,
             freshness: self.freshness(in: object, lastSyncAt: lastSyncAt, staleAfterSeconds: staleAfterSeconds),
-            share: self.shareStatus(in: object))
+            share: self.shareStatus(in: object),
+            remote: remote,
+            sqliteObject: self.sqliteObjectStatus(in: object),
+            sqliteBundle: self.sqliteBundleStatus(in: object))
+    }
+
+    private func gogcliStatus(_ object: [String: Any], result: CrawlCommandResult, staleAfterSeconds _: Int?) -> CrawlAppStatus {
+        if let accounts = object["accounts"] as? [[String: Any]] {
+            let configuredAccount = accounts.first { account in
+                self.boolValue(["valid"], in: account) != false
+                    && ["oauth", "service-account", "service_account", "oauth+service-account", "oauth+service_account"].contains(
+                        self.stringValue(["auth"], in: account)?.lowercased() ?? "")
+            }
+            let failedAccount = accounts.first { self.boolValue(["valid"], in: $0) == false }
+            let failureSummary = failedAccount.flatMap { account in
+                self.stringValue(["error", "hint", "email"], in: account)
+            }
+            return CrawlAppStatus(
+                appID: result.appID,
+                state: configuredAccount == nil ? .needsAuth : .current,
+                summary: configuredAccount == nil ? failureSummary ?? "Google auth needs setup" : "Google auth configured")
+        }
+
+        if let status = self.statusValue(["status"], in: object), object["checks"] != nil {
+            let checks = object["checks"] as? [[String: Any]]
+            let readableTokens = checks?.first { check in
+                self.stringValue(["name"], in: check) == "tokens"
+                    && self.statusValue(["status"], in: check) == .current
+            }
+            let refreshErrors = checks?.filter { check in
+                guard let name = self.stringValue(["name"], in: check) else { return false }
+                return name.hasPrefix("refresh.") && self.statusValue(["status"], in: check) == .error
+            } ?? []
+            let warnings = checks?.compactMap { check -> String? in
+                guard self.statusValue(["status"], in: check) != .current,
+                      let name = self.stringValue(["name"], in: check)
+                else { return nil }
+                let detail = self.stringValue(["detail"], in: check)?.nilIfBlank
+                return [name, detail].compactMap { $0 }.joined(separator: ": ")
+            } ?? []
+            if refreshErrors.isEmpty, let readableTokens {
+                let detail = self.stringValue(["detail"], in: readableTokens)
+                let summary = detail?.split(separator: " ").first.map { "\($0) Google OAuth accounts readable" }
+                    ?? "Google OAuth accounts readable"
+                return CrawlAppStatus(
+                    appID: result.appID,
+                    state: .current,
+                    summary: summary,
+                    configPath: self.gogcliConfigPath(fromChecks: checks),
+                    warnings: warnings)
+            }
+            let failedCheck = checks?.first { check in
+                self.statusValue(["status"], in: check) != .current
+            }
+            let failureSummary = failedCheck.flatMap { check in
+                self.stringValue(["detail", "hint", "name"], in: check)
+            }
+            let mappedState = status == .current
+                ? CrawlAppState.current
+                : self.gogcliDoctorFailureState(failedCheck)
+            return CrawlAppStatus(
+                appID: result.appID,
+                state: mappedState,
+                summary: mappedState == .current ? "Google auth configured" : failureSummary ?? "Google auth needs setup",
+                configPath: self.gogcliConfigPath(fromChecks: checks),
+                warnings: warnings)
+        }
+
+        let account = self.firstObject(["account"], in: object) ?? [:]
+        let config = self.firstObject(["config"], in: object) ?? [:]
+        let credentialsExist = self.boolValue(["credentials_exists"], in: account) ?? false
+        let serviceAccountConfigured = self.boolValue(["service_account_configured"], in: account) ?? false
+        let email = self.stringValue(["email", "account"], in: account)
+        let state: CrawlAppState = (serviceAccountConfigured || (credentialsExist && email != nil)) ? .current : .needsAuth
+        let summary = email.map { "Google account \($0) is ready" }
+            ?? (state == .current ? "Google account is ready" : "Google account needs auth")
+        let warnings = self.boolValue(["exists"], in: config) == false
+            ? ["gog config file not found"]
+            : []
+        return CrawlAppStatus(
+            appID: result.appID,
+            state: state,
+            summary: summary,
+            configPath: self.stringValue(["path"], in: config),
+            warnings: warnings)
+    }
+
+    private func gogcliDoctorFailureState(_ check: [String: Any]?) -> CrawlAppState {
+        let name = check.flatMap { self.stringValue(["name"], in: $0) }?.lowercased() ?? ""
+        return name.contains("config") ? .needsConfig : .needsAuth
+    }
+
+    private func gogcliConfigPath(fromChecks checks: [[String: Any]]?) -> String? {
+        checks?.first { self.stringValue(["name"], in: $0) == "config.path" }
+            .flatMap { self.stringValue(["detail"], in: $0) }
     }
 
     private func wacliStatus(_ object: [String: Any], result: CrawlCommandResult, staleAfterSeconds: Int?) -> CrawlAppStatus {
         let data = self.firstObject(["data"], in: object) ?? object
-        let store = self.firstObject(["store"], in: data) ?? [:]
+        let isAuthenticated = self.boolValue(["authenticated"], in: data) ?? true
+        let storeError = self.stringValue(["store_error"], in: data)?.nilIfBlank
+        if let storeError, (isAuthenticated || !Self.isWacliFirstRunStoreError(storeError)) {
+            return CrawlAppStatus(
+                appID: result.appID,
+                state: .error,
+                summary: storeError,
+                errors: [storeError])
+        }
+        if !isAuthenticated {
+            return CrawlAppStatus(
+                appID: result.appID,
+                state: .needsAuth,
+                summary: "WhatsApp auth needs setup")
+        }
+        let store = self.firstObject(["store"], in: data) ?? data
         let counts = [
             self.count("messages", "Messages", ["messages", "message_count"]),
             self.count("chats", "Chats", ["chats", "chat_count"]),
@@ -306,26 +468,22 @@ public struct CrawlStatusMapper: Sendable {
         ].compactMap { self.value($0, in: store) }
         let lastSyncAt = self.dateValue(["last_sync_at"], in: store)
             ?? self.dateValue(["last_sync_at", "updated_at"], in: data)
-        let freshness = self.freshness(lastSyncAt: lastSyncAt, staleAfterSeconds: staleAfterSeconds)
-        let authenticated = self.boolValue(["authenticated"], in: data)
+        let freshness = self.freshness(in: object, lastSyncAt: lastSyncAt, staleAfterSeconds: staleAfterSeconds)
+        let storeDir = self.stringValue(["store_dir"], in: data)
         let state: CrawlAppState
-        if authenticated == false {
-            state = .needsAuth
-        } else if self.boolValue(["success"], in: object) == false {
+        if self.boolValue(["success"], in: object) == false {
             state = .error
         } else {
             state = self.statusValue(["state", "status"], in: data)
                 ?? self.statusValue(["state", "status"], in: object)
-                ?? freshness?.status
-                ?? .current
+                ?? self.statusState(in: object, lastSyncAt: lastSyncAt, freshness: freshness, fallback: .current, staleAfterSeconds: staleAfterSeconds)
         }
-        let storeDir = self.stringValue(["store_dir"], in: data)
-        let warnings = self.wacliWarnings(in: data)
         return CrawlAppStatus(
             appID: result.appID,
             state: state,
-            summary: self.summary(from: counts, fallback: authenticated == false ? "WhatsApp account needs auth" : "WhatsApp archive is current"),
-            databasePath: storeDir,
+            summary: self.summary(from: counts, fallback: state == .error ? self.stringValue(["error"], in: object) ?? "WhatsApp diagnostics failed" : "WhatsApp archive is current"),
+            configPath: storeDir.map(Self.wacliConfigPath(storeDir:)),
+            databasePath: storeDir.map(Self.wacliDatabasePath(storeDir:)),
             lastSyncAt: lastSyncAt,
             counts: counts,
             databases: storeDir.map {
@@ -338,14 +496,45 @@ public struct CrawlStatusMapper: Sendable {
                     counts: counts)]
             } ?? [],
             freshness: freshness,
-            warnings: warnings,
+            warnings: self.wacliWarnings(in: data),
             errors: self.wacliErrors(in: object))
+    }
+
+    private static func wacliConfigPath(storeDir: String) -> String {
+        let storeURL = URL(fileURLWithPath: storeDir)
+        if storeURL.deletingLastPathComponent().lastPathComponent == "accounts" {
+            return storeURL
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("config.yaml")
+                .path
+        }
+        return storeURL.appendingPathComponent("config.yaml").path
+    }
+
+    private static func wacliDatabasePath(storeDir: String) -> String {
+        let storeURL = URL(fileURLWithPath: storeDir)
+        if storeURL.deletingLastPathComponent().lastPathComponent == "accounts" {
+            return storeURL.appendingPathComponent("wacli.db").path
+        }
+        return storeDir
+    }
+
+    private static func isWacliFirstRunStoreError(_ error: String) -> Bool {
+        let lowercased = error.lowercased()
+        return lowercased.contains("no such file")
+            || lowercased.contains("not found")
+            || lowercased.contains("missing")
+            || lowercased.contains("uninitialized")
     }
 
     private func genericStatus(_ object: [String: Any], result: CrawlCommandResult, staleAfterSeconds: Int?) -> CrawlAppStatus {
         let counts = self.statusCounts(in: object, fallback: self.counts(in: object))
         let databases = self.databaseResources(in: object)
+        let remote = self.remoteStatus(in: object)
         let lastSyncAt = self.dateValue(["last_sync_at", "updated_at", "generated_at"], in: object)
+            ?? remote?.lastSyncAt
+            ?? remote?.lastIngestAt
             ?? self.databaseModifiedAt(databases)
         let freshness = self.freshness(in: object, lastSyncAt: lastSyncAt, staleAfterSeconds: staleAfterSeconds)
         return CrawlAppStatus(
@@ -362,7 +551,10 @@ public struct CrawlStatusMapper: Sendable {
             counts: counts,
             databases: databases,
             freshness: freshness,
-            share: self.shareStatus(in: object))
+            share: self.shareStatus(in: object),
+            remote: remote,
+            sqliteObject: self.sqliteObjectStatus(in: object),
+            sqliteBundle: self.sqliteBundleStatus(in: object))
     }
 
     private func isWacliManifest(_ manifest: CrawlAppManifest) -> Bool {
@@ -503,9 +695,11 @@ public struct CrawlStatusMapper: Sendable {
             return CrawlDatabaseResource(
                 id: id,
                 label: self.stringValue(["label"], in: item) ?? URL(fileURLWithPath: id).lastPathComponent,
-                kind: CrawlDatabaseKind(rawValue: kindValue) ?? .sqlite,
+                kind: CrawlDatabaseKind(rawValue: kindValue) ?? .remote,
                 role: self.stringValue(["role"], in: item),
                 path: path,
+                endpoint: self.stringValue(["endpoint"], in: item),
+                archive: self.stringValue(["archive"], in: item),
                 isPrimary: self.boolValue(["is_primary", "primary"], in: item) ?? false,
                 bytes: self.intValue(["bytes", "size_bytes"], in: item),
                 modifiedAt: self.dateValue(["modified_at", "updated_at"], in: item),
@@ -563,7 +757,7 @@ public struct CrawlStatusMapper: Sendable {
         switch rawValue.lowercased() {
         case "ok", "success", "healthy", "ready":
             return .current
-        case "warning", "degraded":
+        case "warn", "warning", "degraded":
             return .stale
         case "failed", "failure":
             return .error
@@ -590,6 +784,54 @@ public struct CrawlStatusMapper: Sendable {
             remote: share["remote"] as? String,
             branch: share["branch"] as? String,
             needsUpdate: share["needs_update"] as? Bool)
+    }
+
+    private func remoteStatus(in object: [String: Any]) -> CrawlRemoteStatus? {
+        let remote = self.firstObject(["remote"], in: object) ?? object
+        let endpoint = self.stringValue(["endpoint"], in: remote)
+        let archive = self.stringValue(["archive"], in: remote)
+        let mode = self.stringValue(["mode"], in: remote)
+        guard endpoint != nil || archive != nil || mode != nil else { return nil }
+        return CrawlRemoteStatus(
+            enabled: self.boolValue(["enabled"], in: remote) ?? true,
+            mode: mode,
+            endpoint: endpoint,
+            archive: archive,
+            lastIngestAt: self.dateValue(["last_ingest_at"], in: remote),
+            lastSyncAt: self.dateValue(["last_sync_at"], in: remote),
+            needsUpdate: self.boolValue(["needs_update"], in: remote))
+    }
+
+    private func sqliteObjectStatus(in object: [String: Any]) -> CrawlSQLiteObjectStatus? {
+        guard let sqliteObject = self.firstObject(["sqlite_object"], in: object) else { return nil }
+        return CrawlSQLiteObjectStatus(
+            key: self.stringValue(["key"], in: sqliteObject),
+            contentType: self.stringValue(["content_type"], in: sqliteObject),
+            bytes: self.intValue(["bytes", "size"], in: sqliteObject),
+            uploadedAt: self.dateValue(["uploaded_at", "uploaded", "modified_at"], in: sqliteObject))
+    }
+
+    private func sqliteBundleStatus(in object: [String: Any]) -> CrawlSQLiteBundleStatus? {
+        guard let sqliteBundle = self.firstObject(["sqlite_bundle", "bundle"], in: object) else { return nil }
+        let manifest = self.firstObject(["manifest"], in: sqliteBundle) ?? sqliteBundle
+        let compression = self.firstObject(["compression"], in: manifest)
+        let rawObject = self.firstObject(["object"], in: manifest)
+        let compressedObject = self.firstObject(["compressed_object"], in: manifest)
+        let parts = self.firstValue("parts", in: manifest) as? [Any]
+        let compressedBytes = self.int(sqliteBundle["compressed_bytes"] as Any)
+            ?? self.int(sqliteBundle["size"] as Any)
+            ?? compressedObject.flatMap { self.intValue(["bytes", "size"], in: $0) }
+        return CrawlSQLiteBundleStatus(
+            key: self.stringValue(["key"], in: sqliteBundle),
+            contentType: self.stringValue(["content_type"], in: sqliteBundle),
+            format: self.stringValue(["format"], in: manifest),
+            compression: compression.flatMap { self.stringValue(["algorithm"], in: $0) },
+            rawBytes: self.int(sqliteBundle["raw_bytes"] as Any)
+                ?? rawObject.flatMap { self.intValue(["bytes", "size"], in: $0) },
+            compressedBytes: compressedBytes,
+            partCount: self.intValue(["part_count"], in: sqliteBundle) ?? parts?.count,
+            uploadedAt: self.dateValue(["uploaded_at", "uploaded", "modified_at"], in: sqliteBundle),
+            generatedAt: self.dateValue(["generated_at"], in: manifest))
     }
 
     private func firstObject(_ keys: [String], in object: [String: Any]) -> [String: Any]? {

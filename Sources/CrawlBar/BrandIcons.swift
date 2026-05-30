@@ -11,6 +11,8 @@ enum CrawlBarBrandPalette {
             NSColor(calibratedRed: 0.25, green: 0.16, blue: 0.32, alpha: 1)
         case "discrawl":
             NSColor(calibratedRed: 0.35, green: 0.40, blue: 0.95, alpha: 1)
+        case "telecrawl":
+            NSColor(calibratedRed: 0.13, green: 0.62, blue: 0.85, alpha: 1)
         case "notcrawl":
             NSColor(calibratedWhite: 0.08, alpha: 1)
         case "gogcli":
@@ -37,9 +39,42 @@ enum CrawlBarCrawlerTitle {
     }
 }
 
+@MainActor
+enum CrawlBarNativeAppLocator {
+    private static var urlsByBundleIdentifier: [String: URL] = [:]
+
+    static func url(for bundleIdentifier: String) -> URL? {
+        if let cached = Self.urlsByBundleIdentifier[bundleIdentifier] {
+            return cached
+        }
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else {
+            return nil
+        }
+        Self.urlsByBundleIdentifier[bundleIdentifier] = url
+        return url
+    }
+}
+
+@MainActor
 enum CrawlBarIconFactory {
+    private static var imageCache: [String: NSImage] = [:]
+    private static var menuBarImageCache: [String: NSImage] = [:]
+    private static var statusDotImageCache: [String: NSImage] = [:]
+
     static func image(for appID: CrawlAppID, manifest: CrawlAppManifest?, size: CGFloat = 32) -> NSImage {
+        let cacheKey = [
+            "app",
+            appID.rawValue,
+            "\(Self.cacheSizeKey(for: size))",
+            manifest?.branding.iconPath?.nilIfBlank ?? "",
+            manifest?.branding.bundleIdentifier?.nilIfBlank ?? "",
+            manifest?.branding.accentColor.nilIfBlank ?? "",
+        ].joined(separator: "|")
+        if let cached = Self.imageCache[cacheKey] {
+            return cached
+        }
         if let image = Self.brandedImage(for: appID, manifest: manifest, size: size) {
+            Self.imageCache[cacheKey] = image
             return image
         }
         let image = NSImage(size: NSSize(width: size, height: size))
@@ -47,10 +82,15 @@ enum CrawlBarIconFactory {
         Self.drawTile(appID: appID, manifest: manifest, rect: NSRect(x: 0, y: 0, width: size, height: size))
         image.unlockFocus()
         image.isTemplate = false
+        Self.imageCache[cacheKey] = image
         return image
     }
 
     static func menuBarImage(size: CGFloat = 18, rotationDegrees: CGFloat = 0) -> NSImage {
+        let cacheKey = "\(Self.cacheSizeKey(for: size))|\(Int(rotationDegrees.rounded()))"
+        if let cached = Self.menuBarImageCache[cacheKey] {
+            return cached
+        }
         let image = NSImage(size: NSSize(width: size, height: size))
         image.lockFocus()
         if rotationDegrees != 0 {
@@ -93,10 +133,15 @@ enum CrawlBarIconFactory {
         }
         image.unlockFocus()
         image.isTemplate = true
+        Self.menuBarImageCache[cacheKey] = image
         return image
     }
 
     static func statusDotImage(for state: CrawlAppState, size: CGFloat = 12) -> NSImage {
+        let cacheKey = "\(state.rawValue)|\(Self.cacheSizeKey(for: size))"
+        if let cached = Self.statusDotImageCache[cacheKey] {
+            return cached
+        }
         let image = NSImage(size: NSSize(width: size, height: size))
         image.lockFocus()
         let rect = NSRect(x: 2, y: 2, width: size - 4, height: size - 4)
@@ -108,7 +153,21 @@ enum CrawlBarIconFactory {
         dot.stroke()
         image.unlockFocus()
         image.isTemplate = false
+        Self.statusDotImageCache[cacheKey] = image
         return image
+    }
+
+    static func appIconImage() -> NSImage? {
+        for bundle in Self.resourceBundleCandidates() {
+            if let url = bundle.url(forResource: "AppIcon", withExtension: "png") {
+                return NSImage(contentsOf: url)
+            }
+        }
+        return nil
+    }
+
+    private static func cacheSizeKey(for size: CGFloat) -> Int {
+        Int((size * 2).rounded())
     }
 
     private static func statusColor(for state: CrawlAppState) -> NSColor {
@@ -132,7 +191,7 @@ enum CrawlBarIconFactory {
             }
         }
         if let bundleIdentifier = manifest?.branding.bundleIdentifier?.nilIfBlank,
-           let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier)
+           let appURL = CrawlBarNativeAppLocator.url(for: bundleIdentifier)
         {
             return Self.sizedImage(NSWorkspace.shared.icon(forFile: appURL.path), size: size)
         }
@@ -186,12 +245,22 @@ enum CrawlBarIconFactory {
 
     private static func bundledIconName(for appID: CrawlAppID) -> String? {
         switch appID.rawValue {
+        case "gitcrawl":
+            "gitcrawl"
+        case "slacrawl":
+            "slacrawl"
+        case "discrawl":
+            "discrawl"
+        case "notcrawl":
+            "notcrawl"
         case "gogcli":
             "google"
+        case "wacli":
+            "wacli"
         case "birdclaw":
             "x"
         case "graincrawl":
-            "granola"
+            "graincrawl"
         default:
             nil
         }
@@ -243,6 +312,10 @@ enum CrawlBarIconFactory {
             tile.lineWidth = max(1, rect.width * 0.035)
             tile.stroke()
             Self.drawGranolaGlyph(in: rect)
+        case "telecrawl":
+            NSColor(calibratedRed: 0.13, green: 0.62, blue: 0.85, alpha: 1).setFill()
+            tile.fill()
+            Self.drawTelegramGlyph(in: rect)
         default:
             let accent = CrawlBarBrandPalette.accent(for: appID, manifest: manifest)
             accent.withAlphaComponent(0.16).setFill()
@@ -261,6 +334,26 @@ enum CrawlBarIconFactory {
                 Self.drawTerminalGlyph(in: rect, color: accent)
             }
         }
+    }
+
+    private static func drawTelegramGlyph(in rect: NSRect) {
+        NSColor.white.setFill()
+        let plane = NSBezierPath()
+        plane.move(to: NSPoint(x: rect.minX + rect.width * 0.18, y: rect.midY + rect.height * 0.03))
+        plane.line(to: NSPoint(x: rect.maxX - rect.width * 0.16, y: rect.maxY - rect.height * 0.22))
+        plane.line(to: NSPoint(x: rect.maxX - rect.width * 0.32, y: rect.minY + rect.height * 0.20))
+        plane.line(to: NSPoint(x: rect.midX + rect.width * 0.02, y: rect.midY - rect.height * 0.04))
+        plane.line(to: NSPoint(x: rect.minX + rect.width * 0.35, y: rect.minY + rect.height * 0.31))
+        plane.close()
+        plane.fill()
+
+        NSColor(calibratedRed: 0.13, green: 0.62, blue: 0.85, alpha: 1).withAlphaComponent(0.9).setStroke()
+        let fold = NSBezierPath()
+        fold.lineWidth = max(1, rect.width * 0.035)
+        fold.lineCapStyle = .round
+        fold.move(to: NSPoint(x: rect.midX + rect.width * 0.02, y: rect.midY - rect.height * 0.04))
+        fold.line(to: NSPoint(x: rect.maxX - rect.width * 0.18, y: rect.maxY - rect.height * 0.22))
+        fold.stroke()
     }
 
     private static func drawGoogleGlyph(in rect: NSRect) {
@@ -457,14 +550,12 @@ struct CrawlBarBrandIcon: View {
     let appID: CrawlAppID
 
     var body: some View {
-        GeometryReader { proxy in
-            Image(nsImage: CrawlBarIconFactory.image(
-                for: self.appID,
-                manifest: self.manifest,
-                size: max(16, min(proxy.size.width, proxy.size.height))))
-            .resizable()
-            .interpolation(.high)
-        }
+        Image(nsImage: CrawlBarIconFactory.image(
+            for: self.appID,
+            manifest: self.manifest,
+            size: 64))
+        .resizable()
+        .interpolation(.high)
         .aspectRatio(1, contentMode: .fit)
     }
 }

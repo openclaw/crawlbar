@@ -3,6 +3,7 @@ import Foundation
 public enum CrawlProcessEnvironment {
     public static func normalized(_ environment: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
         var normalized = environment
+        normalized["HOME"] = environment["HOME"]?.nilIfBlank ?? FileManager.default.homeDirectoryForCurrentUser.path
         normalized["PATH"] = self.path(environment: environment)
         return normalized
     }

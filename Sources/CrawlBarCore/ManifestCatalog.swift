@@ -16,16 +16,15 @@ public struct CrawlManifestDiagnostic: Codable, Equatable, Sendable, Identifiabl
 
 public struct CrawlManifestCatalog: @unchecked Sendable {
     private let fileManager: FileManager
+    private let scanCache: CrawlManifestScanCache
 
-    public init(fileManager: FileManager = .default) {
+    public init(fileManager: FileManager = .default, scanCache: CrawlManifestScanCache = .shared) {
         self.fileManager = fileManager
+        self.scanCache = scanCache
     }
 
     public func manifests(config: CrawlBarConfig) -> [CrawlAppManifest] {
-        var manifestsByID: [CrawlAppID: CrawlAppManifest] = [:]
-        for manifest in BuiltInCrawlApps.all {
-            manifestsByID[manifest.id] = manifest
-        }
+        var manifestsByID = BuiltInCrawlApps.allByID
         for manifest in self.externalManifestScan(directories: config.manifestDirectories).manifests {
             manifestsByID[manifest.id] = manifest
         }
@@ -41,6 +40,12 @@ public struct CrawlManifestCatalog: @unchecked Sendable {
     }
 
     private func externalManifestScan(directories: [String]) -> (manifests: [CrawlAppManifest], diagnostics: [CrawlManifestDiagnostic]) {
+        self.scanCache.scan(directories: directories) {
+            self.externalManifestScanUncached(directories: directories)
+        }
+    }
+
+    private func externalManifestScanUncached(directories: [String]) -> (manifests: [CrawlAppManifest], diagnostics: [CrawlManifestDiagnostic]) {
         var manifests: [CrawlAppManifest] = []
         var diagnostics: [CrawlManifestDiagnostic] = []
 
@@ -67,5 +72,44 @@ public struct CrawlManifestCatalog: @unchecked Sendable {
         }
 
         return (manifests, diagnostics)
+    }
+}
+
+public final class CrawlManifestScanCache: @unchecked Sendable {
+    public static let shared = CrawlManifestScanCache()
+
+    private struct Entry {
+        var loadedAt: Date
+        var manifests: [CrawlAppManifest]
+        var diagnostics: [CrawlManifestDiagnostic]
+    }
+
+    private let lock = NSLock()
+    private var entries: [String: Entry] = [:]
+    private let timeToLive: TimeInterval
+
+    public init(timeToLive: TimeInterval = 2) {
+        self.timeToLive = timeToLive
+    }
+
+    func scan(
+        directories: [String],
+        load: () -> (manifests: [CrawlAppManifest], diagnostics: [CrawlManifestDiagnostic]))
+        -> (manifests: [CrawlAppManifest], diagnostics: [CrawlManifestDiagnostic])
+    {
+        let key = directories.map { PathExpander.expandHome($0) }.joined(separator: "\u{0}")
+        let now = Date()
+        self.lock.lock()
+        if let entry = self.entries[key], now.timeIntervalSince(entry.loadedAt) < self.timeToLive {
+            self.lock.unlock()
+            return (entry.manifests, entry.diagnostics)
+        }
+        self.lock.unlock()
+
+        let result = load()
+        self.lock.lock()
+        self.entries[key] = Entry(loadedAt: now, manifests: result.manifests, diagnostics: result.diagnostics)
+        self.lock.unlock()
+        return result
     }
 }

@@ -9,23 +9,40 @@ final class CrawlBarSettingsWindowController: NSObject, NSWindowDelegate {
     var onClose: (() -> Void)?
 
     func show(appID: CrawlAppID? = nil) {
+        let startedAt = CFAbsoluteTimeGetCurrent()
+        defer {
+            let elapsedMilliseconds = (CFAbsoluteTimeGetCurrent() - startedAt) * 1000
+            CrawlBarLog.app.debug("Opened settings in \(elapsedMilliseconds, privacy: .public)ms")
+        }
+
         if let window {
             window.makeKeyAndOrderFront(nil)
             NSApplication.shared.activate()
-            if let model = (window.contentView as? NSHostingView<CrawlBarSettingsView>)?.rootView.model {
-                if let appID {
-                    model.selectedAppID = appID
-                }
-                model.refreshAll()
+            if let appID,
+               let model = (window.contentView as? NSHostingView<CrawlBarSettingsView>)?.rootView.model
+            {
+                model.selectedAppID = appID
+            }
+            if let model = self.model {
+                self.refreshStatusAfterPresentation(model: model, window: window)
             }
             return
         }
 
-        let model = CrawlBarSettingsModel()
+        let model: CrawlBarSettingsModel
+        if let cachedModel = self.model {
+            model = cachedModel
+        } else {
+            model = CrawlBarSettingsModel(loadImmediately: false)
+            self.model = model
+        }
         if let appID {
             model.selectedAppID = appID
+        } else if model.selectedSidebarItem == nil {
+            model.selectedSidebarItem = .general
         }
-        self.model = model
+        model.isLoading = true
+        model.lastError = nil
         let window = NSWindow(
             contentRect: NSRect(
                 x: 0,
@@ -35,8 +52,7 @@ final class CrawlBarSettingsWindowController: NSObject, NSWindowDelegate {
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false)
-        window.title = "CrawlBar"
-        window.toolbarStyle = .unified
+        window.title = "CrawlBar Settings"
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.center()
@@ -47,7 +63,17 @@ final class CrawlBarSettingsWindowController: NSObject, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
         NSApplication.shared.activate()
         self.window = window
+        model.loadForPresentation { [weak self, weak window] in
+            guard let self, let window else { return }
+            self.refreshStatusAfterPresentation(model: model, window: window)
+        }
+    }
+
+    private func refreshStatusAfterPresentation(model: CrawlBarSettingsModel, window: NSWindow) {
+        guard !model.isRefreshing else { return }
         Task { @MainActor in
+            await Task.yield()
+            guard self.window === window else { return }
             model.refreshAll()
         }
     }
@@ -55,7 +81,7 @@ final class CrawlBarSettingsWindowController: NSObject, NSWindowDelegate {
     nonisolated func windowWillClose(_ notification: Notification) {
         Task { @MainActor in
             self.model?.save()
-            self.model = nil
+            self.model?.scrubSecretConfigValues()
             self.window = nil
             self.onClose?()
         }
@@ -66,7 +92,16 @@ final class CrawlBarSettingsWindowController: NSObject, NSWindowDelegate {
 final class CrawlBarSettingsModel: NSObject, ObservableObject {
     @Published var apps: [CrawlBarAppConfig] = []
     @Published var refreshFrequency: RefreshFrequency = .fifteenMinutes
-    @Published var selectedAppID: CrawlAppID?
+    @Published fileprivate var selectedSidebarItem: CrawlBarSettingsSidebarItem?
+    var selectedAppID: CrawlAppID? {
+        get {
+            guard case let .crawler(id) = self.selectedSidebarItem else { return nil }
+            return id
+        }
+        set {
+            self.selectedSidebarItem = newValue.map(CrawlBarSettingsSidebarItem.crawler)
+        }
+    }
     @Published var statuses: [CrawlAppID: CrawlAppStatus] = [:]
     @Published var installations: [CrawlAppID: CrawlAppInstallation] = [:]
     @Published var isRefreshing = false
@@ -77,11 +112,16 @@ final class CrawlBarSettingsModel: NSObject, ObservableObject {
     @Published var recentResults: [CrawlAppID: CrawlCommandResult] = [:]
     @Published var lastError: String?
     @Published var manifestDiagnostics: [CrawlManifestDiagnostic] = []
+    @Published var isLoading = false
+    @Published fileprivate var manifestDirectories: [String] = ["~/.crawlbar/apps"]
 
     private var refreshTask: Task<Void, Never>?
+    private var loadTask: Task<Void, Never>?
     private var pendingSaveTask: Task<Void, Never>?
     private var refreshGeneration = UUID()
-    private var manifestDirectories: [String] = ["~/.crawlbar/apps"]
+    private var loadGeneration = UUID()
+    private var recentResultsGeneration = UUID()
+    private var hasLoadedSnapshot = false
     private var clearedNativeSecretIDsByAppID: [CrawlAppID: Set<String>] = [:]
     private let store = CrawlBarConfigStore()
     private let registry = CrawlAppRegistry()
@@ -91,7 +131,7 @@ final class CrawlBarSettingsModel: NSObject, ObservableObject {
     private let installer = CrawlInstaller()
     private let logStore = CrawlActionLogStore()
 
-    override init() {
+    init(loadImmediately: Bool = true) {
         let runner = CrawlCommandRunner()
         self.runner = runner
         self.statusService = CrawlStatusService(runner: runner)
@@ -101,46 +141,58 @@ final class CrawlBarSettingsModel: NSObject, ObservableObject {
             selector: #selector(Self.statusesDidChange(_:)),
             name: .crawlBarStatusesDidChange,
             object: nil)
-        self.load()
+        if loadImmediately {
+            self.load()
+        } else {
+            self.selectedSidebarItem = .general
+        }
     }
 
     deinit {
         NotificationCenter.default.removeObserver(self)
     }
 
+    private var sidebarSelectionIsValid: Bool {
+        switch self.selectedSidebarItem {
+        case .general:
+            true
+        case .crawler(let id):
+            self.apps.contains { $0.id == id }
+        case nil:
+            false
+        }
+    }
+
     func load() {
         do {
-            let config = try self.store.loadOrCreateDefault()
-            self.manifestDiagnostics = CrawlManifestCatalog().diagnostics(config: config)
-            let loadedInstallations = try self.registry.installations(includeDisabled: true)
-            let manifests = Dictionary(uniqueKeysWithValues: loadedInstallations.map { ($0.id, $0.manifest) })
-            let appConfigsByID = Dictionary(uniqueKeysWithValues: config.apps.map { ($0.id, $0) })
-            let installationsByID = Dictionary(uniqueKeysWithValues: loadedInstallations.map { ($0.id, $0) })
-            let apps = loadedInstallations.map { installation in
-                let appConfig = appConfigsByID[installation.id] ?? CrawlBarAppConfig(
-                    id: installation.id,
-                    enabled: installation.manifest.availability == .available,
-                    showInMenuBar: installation.manifest.availability == .available)
-                guard let manifest = manifests[appConfig.id] else { return appConfig }
-                var copy = appConfig
-                copy.configValues = self.nativeConfigStore.resolvedConfigValues(
-                    appConfig: appConfig,
-                    manifest: manifest,
-                    includeSecrets: false)
-                return copy
-            }
-            self.apps = Self.sortedAppConfigs(apps, installationsByID: installationsByID)
-            self.refreshFrequency = config.refreshFrequency
-            self.manifestDirectories = config.manifestDirectories
-            self.installations = installationsByID
-            if self.selectedAppID == nil || !self.apps.contains(where: { $0.id == self.selectedAppID }) {
-                self.selectedAppID = self.apps.first?.id
-            }
-            self.loadRecentResults()
-            self.lastError = nil
+            self.apply(try Self.loadSnapshot())
         } catch {
             CrawlBarLog.config.error("Settings load failed: \(error.localizedDescription, privacy: .public)")
             self.lastError = error.localizedDescription
+        }
+    }
+
+    func loadForPresentation(onLoaded: @escaping @MainActor () -> Void) {
+        self.loadTask?.cancel()
+        let generation = UUID()
+        self.loadGeneration = generation
+        self.isLoading = true
+        self.lastError = nil
+        self.loadTask = Task.detached {
+            let snapshot = Result { try Self.loadSnapshot() }
+            await MainActor.run {
+                guard self.loadGeneration == generation else { return }
+                self.isLoading = false
+                self.loadTask = nil
+                switch snapshot {
+                case .success(let snapshot):
+                    self.apply(snapshot)
+                    onLoaded()
+                case .failure(let error):
+                    CrawlBarLog.config.error("Settings load failed: \(error.localizedDescription, privacy: .public)")
+                    self.lastError = error.localizedDescription
+                }
+            }
         }
     }
 
@@ -148,6 +200,17 @@ final class CrawlBarSettingsModel: NSObject, ObservableObject {
         self.pendingSaveTask?.cancel()
         self.pendingSaveTask = nil
         self.persist()
+    }
+
+    func scrubSecretConfigValues() {
+        var scrubbedApps = self.apps
+        for index in scrubbedApps.indices {
+            guard let manifest = self.installations[scrubbedApps[index].id]?.manifest else { continue }
+            for option in manifest.configOptions where option.kind == .secret {
+                scrubbedApps[index].configValues.removeValue(forKey: option.id)
+            }
+        }
+        self.apps = scrubbedApps
     }
 
     func saveDebounced() {
@@ -161,6 +224,7 @@ final class CrawlBarSettingsModel: NSObject, ObservableObject {
     }
 
     private func persist() {
+        guard self.hasLoadedSnapshot, !self.isLoading else { return }
         do {
             let config = CrawlBarConfig(
                 refreshFrequency: self.refreshFrequency,
@@ -193,7 +257,7 @@ final class CrawlBarSettingsModel: NSObject, ObservableObject {
     }
 
     func refreshAll() {
-        self.loadRecentResults()
+        self.loadRecentResultsAsync()
         self.refreshTask?.cancel()
         let generation = UUID()
         self.refreshGeneration = generation
@@ -208,8 +272,18 @@ final class CrawlBarSettingsModel: NSObject, ObservableObject {
                 self.installations = installationsByID
                 self.apps = Self.sortedAppConfigs(self.apps, installationsByID: installationsByID)
             }
+            let partitioned = Self.partitionStatuses(installations: installations, statusService: statusService)
+            if !partitioned.immediate.isEmpty {
+                await MainActor.run {
+                    guard self.refreshGeneration == generation else { return }
+                    for status in partitioned.immediate {
+                        self.statuses[status.appID] = status
+                    }
+                    CrawlBarStateBroadcast.statusesDidChange(Dictionary(uniqueKeysWithValues: partitioned.immediate.map { ($0.appID, $0) }))
+                }
+            }
             await withTaskGroup(of: CrawlAppStatus.self) { group in
-                for installation in installations {
+                for installation in partitioned.commandInstallations {
                     group.addTask {
                         guard !Task.isCancelled else {
                             return CrawlAppStatus(appID: installation.id, state: .unknown, summary: "Refresh cancelled")
@@ -232,6 +306,23 @@ final class CrawlBarSettingsModel: NSObject, ObservableObject {
                 self.refreshTask = nil
             }
         }
+    }
+
+    nonisolated private static func partitionStatuses(
+        installations: [CrawlAppInstallation],
+        statusService: CrawlStatusService)
+        -> (immediate: [CrawlAppStatus], commandInstallations: [CrawlAppInstallation])
+    {
+        var immediate: [CrawlAppStatus] = []
+        var commandInstallations: [CrawlAppInstallation] = []
+        for installation in installations {
+            if let status = statusService.immediateStatus(for: installation) {
+                immediate.append(status)
+            } else {
+                commandInstallations.append(installation)
+            }
+        }
+        return (immediate, commandInstallations)
     }
 
     func runAction(_ action: String, appID: CrawlAppID) {
@@ -279,13 +370,21 @@ final class CrawlBarSettingsModel: NSObject, ObservableObject {
     }
 
     private func loadRecentResults() {
-        var resultsByApp: [CrawlAppID: CrawlCommandResult] = [:]
-        for result in self.logStore.recentResults(limit: 200).sorted(by: { $0.finishedAt > $1.finishedAt }) {
-            if resultsByApp[result.appID] == nil {
-                resultsByApp[result.appID] = result
+        self.recentResultsGeneration = UUID()
+        self.recentResults = Self.recentResults(logStore: self.logStore)
+    }
+
+    private func loadRecentResultsAsync() {
+        let logStore = self.logStore
+        let generation = UUID()
+        self.recentResultsGeneration = generation
+        Task.detached {
+            let results = Self.recentResults(logStore: logStore)
+            await MainActor.run {
+                guard self.recentResultsGeneration == generation else { return }
+                self.recentResults = results
             }
         }
-        self.recentResults = resultsByApp
     }
 
     private func mergeStatuses(_ incoming: [CrawlAppID: CrawlAppStatus]) {
@@ -388,6 +487,12 @@ final class CrawlBarSettingsModel: NSObject, ObservableObject {
             "Unlock"
         case "publish":
             "Publish"
+        case "cloud-publish":
+            "Cloud Publish"
+        case "remote-status":
+            "Remote Status"
+        case "remote-archives":
+            "Remote Archives"
         case "update":
             "Update"
         case "desktop-cache-import":
@@ -409,6 +514,62 @@ final class CrawlBarSettingsModel: NSObject, ObservableObject {
             if lhsRank != rhsRank { return lhsRank < rhsRank }
             return (originalIndex[lhs.id] ?? Int.max) < (originalIndex[rhs.id] ?? Int.max)
         }
+    }
+
+    private func apply(_ snapshot: CrawlBarSettingsSnapshot) {
+        self.hasLoadedSnapshot = true
+        self.apps = snapshot.apps
+        self.refreshFrequency = snapshot.refreshFrequency
+        self.manifestDirectories = snapshot.manifestDirectories
+        self.installations = snapshot.installations
+        self.recentResults = snapshot.recentResults
+        self.manifestDiagnostics = snapshot.manifestDiagnostics
+        if !self.sidebarSelectionIsValid {
+            self.selectedSidebarItem = self.apps.first.map { .crawler($0.id) } ?? .general
+        }
+        self.lastError = nil
+    }
+
+    nonisolated private static func loadSnapshot() throws -> CrawlBarSettingsSnapshot {
+        let store = CrawlBarConfigStore()
+        let registry = CrawlAppRegistry()
+        let nativeConfigStore = CrawlNativeConfigStore()
+        let logStore = CrawlActionLogStore()
+        let config = try store.loadOrCreateDefault()
+        let loadedInstallations = try registry.installations(includeDisabled: true)
+        let manifests = Dictionary(uniqueKeysWithValues: loadedInstallations.map { ($0.id, $0.manifest) })
+        let appConfigsByID = Dictionary(uniqueKeysWithValues: config.apps.map { ($0.id, $0) })
+        let installationsByID = Dictionary(uniqueKeysWithValues: loadedInstallations.map { ($0.id, $0) })
+        let apps = loadedInstallations.map { installation in
+            let appConfig = appConfigsByID[installation.id] ?? CrawlBarAppConfig(
+                id: installation.id,
+                enabled: installation.manifest.availability == .available,
+                showInMenuBar: installation.manifest.availability == .available)
+            guard let manifest = manifests[appConfig.id] else { return appConfig }
+            var copy = appConfig
+            copy.configValues = nativeConfigStore.resolvedConfigValues(
+                appConfig: appConfig,
+                manifest: manifest,
+                includeSecrets: false)
+            return copy
+        }
+        return CrawlBarSettingsSnapshot(
+            apps: Self.sortedAppConfigs(apps, installationsByID: installationsByID),
+            refreshFrequency: config.refreshFrequency,
+            manifestDirectories: config.manifestDirectories,
+            installations: installationsByID,
+            recentResults: Self.recentResults(logStore: logStore),
+            manifestDiagnostics: CrawlManifestCatalog().diagnostics(config: config))
+    }
+
+    nonisolated private static func recentResults(logStore: CrawlActionLogStore) -> [CrawlAppID: CrawlCommandResult] {
+        var resultsByApp: [CrawlAppID: CrawlCommandResult] = [:]
+        for result in logStore.recentResults(limit: 200).sorted(by: { $0.finishedAt > $1.finishedAt }) {
+            if resultsByApp[result.appID] == nil {
+                resultsByApp[result.appID] = result
+            }
+        }
+        return resultsByApp
     }
 
     nonisolated private static func sidebarRank(installation: CrawlAppInstallation?) -> Int {
@@ -489,153 +650,149 @@ private enum CrawlBarSettingsError: LocalizedError {
     }
 }
 
-private enum CrawlBarSettingsMode: String, CaseIterable, Identifiable {
-    case crawlers
+fileprivate enum CrawlBarSettingsSidebarItem: Hashable {
     case general
+    case crawler(CrawlAppID)
+}
 
-    var id: String { self.rawValue }
-
-    var title: String {
-        switch self {
-        case .crawlers:
-            "Crawlers"
-        case .general:
-            "General"
-        }
-    }
+private struct CrawlBarSettingsSnapshot: Sendable {
+    let apps: [CrawlBarAppConfig]
+    let refreshFrequency: RefreshFrequency
+    let manifestDirectories: [String]
+    let installations: [CrawlAppID: CrawlAppInstallation]
+    let recentResults: [CrawlAppID: CrawlCommandResult]
+    let manifestDiagnostics: [CrawlManifestDiagnostic]
 }
 
 private enum CrawlBarSettingsLayout {
-    static let minWindowWidth: CGFloat = 860
-    static let minWindowHeight: CGFloat = 620
-    static let sidebarWidth: CGFloat = 252
+    static let minWindowWidth: CGFloat = 1120
+    static let minWindowHeight: CGFloat = 790
+    static let sidebarWidth: CGFloat = 250
+    static let detailHorizontalPadding: CGFloat = 22
+    static let detailVerticalPadding: CGFloat = 18
+    static let detailBottomPadding: CGFloat = 16
 }
 
 struct CrawlBarSettingsView: View {
     @ObservedObject var model: CrawlBarSettingsModel
-    @State private var selectedMode: CrawlBarSettingsMode = .crawlers
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            self.sidebar
-            self.detail
-                .frame(
-                    maxWidth: .infinity,
-                    maxHeight: .infinity,
-                    alignment: .topLeading)
+        NavigationSplitView(columnVisibility: self.animatedColumnVisibility) {
+            List(selection: self.sidebarSelection) {
+                Section("CrawlBar") {
+                    CrawlBarGeneralSidebarRow(isSelected: self.model.selectedSidebarItem == .general)
+                        .tag(CrawlBarSettingsSidebarItem.general as CrawlBarSettingsSidebarItem?)
+                        .contentShape(Rectangle())
+                        .listRowBackground(CrawlBarSidebarSelectionBackground(isSelected: self.model.selectedSidebarItem == .general))
+                        .onTapGesture {
+                            self.model.selectedSidebarItem = .general
+                        }
+                }
+                Section("Crawlers") {
+                    ForEach(self.model.apps) { app in
+                        let item = CrawlBarSettingsSidebarItem.crawler(app.id)
+                        CrawlBarSidebarRow(
+                            app: app,
+                            manifest: self.model.installations[app.id]?.manifest,
+                            status: self.model.statuses[app.id],
+                            binaryPath: self.model.installations[app.id]?.binaryPath,
+                            isSelected: self.model.selectedSidebarItem == item)
+                            .tag(item as CrawlBarSettingsSidebarItem?)
+                            .contentShape(Rectangle())
+                            .listRowBackground(CrawlBarSidebarSelectionBackground(isSelected: self.model.selectedSidebarItem == item))
+                            .onTapGesture {
+                                self.model.selectedSidebarItem = item
+                            }
+                    }
+                }
+            }
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(CrawlBarSettingsLayout.sidebarWidth)
+        } detail: {
+            self.detailContainer
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 16)
+        .navigationSplitViewStyle(.balanced)
         .frame(
             minWidth: CrawlBarSettingsLayout.minWindowWidth,
             maxWidth: .infinity,
             minHeight: CrawlBarSettingsLayout.minWindowHeight,
             maxHeight: .infinity,
-            alignment: .top)
+            alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Text("Crawlers")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                Spacer()
-                Button {
-                    self.model.refreshAll()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
+    private var sidebarSelection: Binding<CrawlBarSettingsSidebarItem?> {
+        Binding(
+            get: { self.model.selectedSidebarItem },
+            set: { item in
+                guard let item else { return }
+                self.model.selectedSidebarItem = item
+            })
+    }
+
+    private var animatedColumnVisibility: Binding<NavigationSplitViewVisibility> {
+        Binding(
+            get: { self.columnVisibility },
+            set: { visibility in
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    self.columnVisibility = visibility
                 }
-                .buttonStyle(.borderless)
-                .controlSize(.small)
-                .accessibilityLabel("Refresh crawler status")
-            }
-            .padding(.horizontal, 4)
-
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach(self.model.apps) { app in
-                            Button {
-                                self.selectedMode = .crawlers
-                                self.model.selectedAppID = app.id
-                            } label: {
-                                CrawlBarSidebarRow(
-                                    app: app,
-                                    manifest: self.model.installations[app.id]?.manifest,
-                                    status: self.model.statuses[app.id],
-                                    binaryPath: self.model.installations[app.id]?.binaryPath)
-                                .padding(.horizontal, 8)
-                            }
-                            .buttonStyle(CrawlBarSidebarSelectionStyle(isSelected: self.selectedMode == .crawlers && self.model.selectedAppID == app.id))
-                            .accessibilityLabel(CrawlBarCrawlerTitle.text(for: app.id, manifest: self.model.installations[app.id]?.manifest))
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-
-                Divider()
-                    .padding(.leading, 8)
-
-                CrawlBarSidebarButton(
-                    title: "General",
-                    subtitle: "App settings",
-                    systemImage: "gearshape",
-                    isSelected: self.selectedMode == .general,
-                    isDimmed: false)
-                {
-                    self.selectedMode = .general
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-            }
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.8)))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Color(nsColor: .separatorColor).opacity(0.7), lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-            if let error = self.model.lastError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .frame(width: CrawlBarSettingsLayout.sidebarWidth)
-        .frame(maxHeight: .infinity, alignment: .top)
+            })
     }
 
     @ViewBuilder
-    private var detail: some View {
-        switch self.selectedMode {
-        case .general:
-            CrawlBarGeneralSettingsView(model: self.model)
-        case .crawlers:
-            if let selectedID = self.model.selectedAppID,
-               self.model.apps.contains(where: { $0.id == selectedID })
-            {
-                CrawlBarAppDetailView(
-                    app: self.binding(for: selectedID),
-                    globalRefreshFrequency: self.model.refreshFrequency,
-                    installation: self.model.installations[selectedID],
-                    status: self.model.statuses[selectedID],
-                    latestResult: self.model.recentResults[selectedID],
-                    isRefreshing: self.model.isRefreshing,
-                    runningAction: self.model.runningActions[selectedID],
-                    actionMessage: self.model.actionMessages[selectedID],
-                    refreshStatus: { self.model.refreshAll() },
-                    runAction: { action in self.model.runAction(action, appID: selectedID) },
-                    installApp: { self.model.installApp(selectedID) },
-                    backupDatabases: { self.model.backupDatabases(selectedID) },
-                    openDataFolder: { self.model.openDataFolder(selectedID) },
-                    configValueChanged: { option, value in self.model.configValueDidChange(appID: selectedID, option: option, value: value) },
-                    save: { self.model.save() },
-                    saveDebounced: { self.model.saveDebounced() })
-            } else {
+    private var detailContainer: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let error = self.model.lastError {
+                CrawlBarSettingsErrorBanner(message: error)
+                    .padding(.horizontal, CrawlBarSettingsLayout.detailHorizontalPadding)
+                    .padding(.top, CrawlBarSettingsLayout.detailVerticalPadding)
+                    .padding(.bottom, 12)
+            }
+            self.selectedDetail
+                .disabled(self.model.isLoading)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private var selectedDetail: some View {
+        if self.model.isLoading && self.model.apps.isEmpty {
+            ProgressView("Loading settings...")
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        } else {
+            switch self.model.selectedSidebarItem {
+            case .general:
+                CrawlBarGeneralSettingsView(model: self.model)
+            case .crawler(let selectedID):
+                if self.model.apps.contains(where: { $0.id == selectedID })
+                {
+                    CrawlBarAppDetailView(
+                        app: self.binding(for: selectedID),
+                        globalRefreshFrequency: self.model.refreshFrequency,
+                        installation: self.model.installations[selectedID],
+                        status: self.model.statuses[selectedID],
+                        latestResult: self.model.recentResults[selectedID],
+                        isRefreshing: self.model.isRefreshing,
+                        runningAction: self.model.runningActions[selectedID],
+                        actionMessage: self.model.actionMessages[selectedID],
+                        refreshStatus: { self.model.refreshAll() },
+                        runAction: { action in self.model.runAction(action, appID: selectedID) },
+                        installApp: { self.model.installApp(selectedID) },
+                        backupDatabases: { self.model.backupDatabases(selectedID) },
+                        openDataFolder: { self.model.openDataFolder(selectedID) },
+                        configValueChanged: { option, value in self.model.configValueDidChange(appID: selectedID, option: option, value: value) },
+                        save: { self.model.save() },
+                        saveDebounced: { self.model.saveDebounced() })
+                        .padding(.horizontal, CrawlBarSettingsLayout.detailHorizontalPadding)
+                        .padding(.vertical, CrawlBarSettingsLayout.detailVerticalPadding)
+                } else {
+                    ContentUnavailableView(
+                        "No crawler selected",
+                        systemImage: "sidebar.left")
+                }
+            case nil:
                 ContentUnavailableView(
                     "No crawler selected",
                     systemImage: "sidebar.left")
@@ -653,56 +810,27 @@ struct CrawlBarSettingsView: View {
                 self.model.apps[index] = $0
             })
     }
+
 }
 
-private struct CrawlBarSidebarButton: View {
-    let title: String
-    let subtitle: String
-    let systemImage: String
-    let isSelected: Bool
-    let isDimmed: Bool
-    let action: () -> Void
+private struct CrawlBarSettingsErrorBanner: View {
+    let message: String
 
     var body: some View {
-        Button(action: self.action) {
-            HStack(spacing: 11) {
-                Image(systemName: self.systemImage)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(self.isSelected ? .white : .secondary)
-                    .frame(width: 32, height: 32)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(Color(nsColor: .controlAccentColor).opacity(self.isSelected ? 1 : 0.12)))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(self.title)
-                        .font(.system(size: 13, weight: .semibold))
-                    Text(self.subtitle)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+            Text(self.message)
+                .font(.caption)
+                .foregroundStyle(.red)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+            Spacer(minLength: 0)
         }
-        .buttonStyle(CrawlBarSidebarSelectionStyle(isSelected: self.isSelected))
-        .opacity(self.isDimmed ? 0.58 : 1)
-        .accessibilityLabel(self.title)
-    }
-}
-
-private struct CrawlBarSidebarSelectionStyle: ButtonStyle {
-    let isSelected: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(self.isSelected ? Color(nsColor: .selectedContentBackgroundColor) : Color.clear)
-                    .padding(.horizontal, 4))
-            .contentShape(Rectangle())
-            .opacity(configuration.isPressed ? 0.78 : 1)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 
@@ -815,11 +943,15 @@ private struct CrawlBarGeneralSettingsView: View {
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 4)
+            .padding(.bottom, CrawlBarSettingsLayout.detailBottomPadding)
         }
+        .padding(.horizontal, CrawlBarSettingsLayout.detailHorizontalPadding)
+        .padding(.vertical, CrawlBarSettingsLayout.detailVerticalPadding)
     }
 
     private var manifestDirectories: [String] {
-        (try? CrawlBarConfigStore().loadOrCreateDefault().manifestDirectories) ?? ["~/.crawlbar/apps"]
+        self.model.manifestDirectories
     }
 
     private var readyCount: Int {
@@ -835,11 +967,40 @@ private struct CrawlBarGeneralSettingsView: View {
     }
 }
 
+struct CrawlBarGeneralSidebarRow: View {
+    let isSelected: Bool
+
+    var body: some View {
+        Label("General", systemImage: "gearshape")
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(self.isSelected ? Color.white : Color.primary)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct CrawlBarSidebarSelectionBackground: View {
+    let isSelected: Bool
+
+    var body: some View {
+        if self.isSelected {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.accentColor.opacity(0.82))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+        } else {
+            Color.clear
+        }
+    }
+}
+
 struct CrawlBarSidebarRow: View {
     let app: CrawlBarAppConfig
     let manifest: CrawlAppManifest?
     let status: CrawlAppStatus?
     let binaryPath: String?
+    let isSelected: Bool
 
     var body: some View {
         HStack(spacing: 11) {
@@ -849,6 +1010,7 @@ struct CrawlBarSidebarRow: View {
                 HStack(spacing: 6) {
                     Text(CrawlBarCrawlerTitle.text(for: self.app.id, manifest: self.manifest))
                         .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(self.isSelected ? Color.white : Color.primary)
                         .lineLimit(1)
                     CrawlBarStatusDot(state: self.rowState)
                 }
@@ -859,6 +1021,7 @@ struct CrawlBarSidebarRow: View {
             }
             Spacer(minLength: 0)
         }
+        .padding(.horizontal, 7)
         .padding(.vertical, 5)
         .opacity(self.manifest?.availability == .comingSoon ? 0.58 : 1)
     }
@@ -916,35 +1079,14 @@ struct CrawlBarSidebarRow: View {
     }
 
     private var subtitleColor: Color {
+        if self.isSelected { return Color.white.opacity(0.78) }
         switch self.rowState {
         case .needsConfig, .needsAuth, .error:
-            .red
+            return Color.red
         case .stale where self.app.id == BuiltInCrawlApps.graincrawlID && self.status?.state == .error:
-            .yellow
+            return Color.yellow
         default:
-            .secondary
-        }
-    }
-}
-
-private enum CrawlBarDetailTab: String, CaseIterable, Identifiable {
-    case overview
-    case data
-    case sync
-    case settings
-
-    var id: String { self.rawValue }
-
-    var title: String {
-        switch self {
-        case .overview:
-            "Overview"
-        case .data:
-            "Data"
-        case .sync:
-            "Sync"
-        case .settings:
-            "Settings"
+            return Color.secondary
         }
     }
 }
@@ -967,12 +1109,10 @@ struct CrawlBarAppDetailView: View {
     let save: () -> Void
     let saveDebounced: () -> Void
 
-    @State private var selectedTab: CrawlBarDetailTab = .overview
-
     private var manifest: CrawlAppManifest? { self.installation?.manifest ?? BuiltInCrawlApps.manifest(for: self.app.id) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             self.header
             if self.isComingSoon {
                 self.comingSoonContent
@@ -983,19 +1123,15 @@ struct CrawlBarAppDetailView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(.top, 6)
             } else {
-                Picker("Section", selection: self.$selectedTab) {
-                    ForEach(CrawlBarDetailTab.allCases) { tab in
-                        Text(tab.title).tag(tab)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        self.selectedContent
+                    VStack(alignment: .leading, spacing: 20) {
+                        self.statusSection
+                        self.dataSection
+                        self.syncSection
+                        self.configurationSection
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 8)
+                    .padding(.bottom, 10)
                     .padding(.horizontal, 2)
                 }
             }
@@ -1036,27 +1172,6 @@ struct CrawlBarAppDetailView: View {
                 }
             }
             .controlSize(.small)
-        }
-    }
-
-    @ViewBuilder
-    private var selectedContent: some View {
-        switch self.selectedTab {
-        case .overview:
-            self.overviewDashboard
-        case .data:
-            self.remoteStore
-            if !self.usesRemoteStore {
-                self.databases
-            }
-            self.metrics
-        case .sync:
-            self.syncSettings
-            self.gitShareSettings
-        case .settings:
-            self.configuration
-            self.paths
-            self.privacy
         }
     }
 
@@ -1117,8 +1232,8 @@ struct CrawlBarAppDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
-    private var overviewDashboard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    private var statusSection: some View {
+        CrawlBarDetailSection(title: "Status") {
             LazyVGrid(
                 columns: [
                     GridItem(.flexible(minimum: 260), spacing: 14, alignment: .top),
@@ -1131,6 +1246,32 @@ struct CrawlBarAppDetailView: View {
                 self.sourceSummary
                 self.latestRunSummary
             }
+        }
+    }
+
+    private var dataSection: some View {
+        CrawlBarDetailSection(title: "Data") {
+            self.remoteStore
+            if !self.usesRemoteStore {
+                self.databases
+            }
+            self.metrics
+        }
+    }
+
+    private var syncSection: some View {
+        CrawlBarDetailSection(title: "Sync") {
+            self.syncSettings
+            self.cloudArchiveSettings
+            self.gitShareSettings
+        }
+    }
+
+    private var configurationSection: some View {
+        CrawlBarDetailSection(title: "Configuration") {
+            self.configuration
+            self.paths
+            self.privacy
         }
     }
 
@@ -1207,13 +1348,28 @@ struct CrawlBarAppDetailView: View {
     @ViewBuilder
     private var remoteStore: some View {
         if let remoteStore = self.remoteStoreSummary {
-            CrawlBarPanel(title: "Remote Store") {
+            CrawlBarPanel(title: remoteStore.title) {
                 CrawlBarFact(label: "Remote", value: remoteStore.remote)
+                if let archive = remoteStore.archive {
+                    CrawlBarFact(label: "Archive", value: archive)
+                }
                 if let repoPath = remoteStore.repoPath {
                     CrawlBarFact(label: "Checkout", value: repoPath)
                 }
                 if let branch = remoteStore.branch {
                     CrawlBarFact(label: "Branch", value: branch)
+                }
+                if let bundle = remoteStore.bundle {
+                    CrawlBarFact(label: "Bundle", value: bundle)
+                }
+                if let compressed = remoteStore.compressed {
+                    CrawlBarFact(label: "Compressed", value: compressed)
+                }
+                if let parts = remoteStore.parts {
+                    CrawlBarFact(label: "Parts", value: parts)
+                }
+                if let lastIngest = remoteStore.lastIngest {
+                    CrawlBarFact(label: "Ingest", value: lastIngest)
                 }
                 if let databasePath = self.status?.databasePath {
                     CrawlBarFact(label: "Local index", value: URL(fileURLWithPath: databasePath).lastPathComponent)
@@ -1225,11 +1381,9 @@ struct CrawlBarAppDetailView: View {
     @ViewBuilder
     private var databases: some View {
         if let databases = self.status?.databases, !databases.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
+            CrawlBarPanel(title: "Databases") {
                 HStack {
-                    Text("Databases")
-                        .font(.headline)
-                    Spacer()
+                    Spacer(minLength: 0)
                     Button {
                         self.openDataFolder()
                     } label: {
@@ -1261,22 +1415,19 @@ struct CrawlBarAppDetailView: View {
                 }
             }
         } else {
-            ContentUnavailableView(
-                "No database metadata",
-                systemImage: "internaldrive",
-                description: Text("This crawler has not reported database paths or sizes yet."))
-                .frame(maxWidth: .infinity, minHeight: 180)
+            CrawlBarPanel(title: "Databases") {
+                Label("No database metadata yet", systemImage: "internaldrive")
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
     @ViewBuilder
     private var metrics: some View {
         if !self.overviewCounts.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
+            CrawlBarPanel(title: "Counts") {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("Data")
-                        .font(.headline)
-                    Spacer(minLength: 8)
+                    Spacer(minLength: 0)
                     Text(self.overviewDataScope)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -1291,42 +1442,37 @@ struct CrawlBarAppDetailView: View {
                 }
             }
         } else {
-            ContentUnavailableView(
-                "No counts yet",
-                systemImage: "number",
-                description: Text("This crawler has not reported count metrics yet."))
-                .frame(maxWidth: .infinity, minHeight: 140)
+            CrawlBarPanel(title: "Counts") {
+                Label("No count metrics yet", systemImage: "number")
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
     private var syncSettings: some View {
         CrawlBarPanel(title: "Sync") {
             VStack(alignment: .leading, spacing: 10) {
-                Toggle(isOn: self.$app.enabled) {
-                    CrawlBarOptionLabel(
-                        title: "Enable crawler",
-                        caption: "Allow CrawlBar to run actions and show live status.")
-                }
+                CrawlBarSwitchRow(
+                    title: "Enable crawler",
+                    caption: "Allow CrawlBar to run actions and show live status.",
+                    isOn: self.$app.enabled)
                     .onChange(of: self.app.enabled) { self.save() }
-                Toggle(isOn: self.$app.showInMenuBar) {
-                    CrawlBarOptionLabel(
-                        title: "Show in menu bar",
-                        caption: "Include this crawler in the menu bar status menu.")
-                }
+                CrawlBarSwitchRow(
+                    title: "Show in menu bar",
+                    caption: "Include this crawler in the menu bar status menu.",
+                    isOn: self.$app.showInMenuBar)
                     .disabled(!self.app.enabled)
                     .onChange(of: self.app.showInMenuBar) { self.save() }
-                Toggle(isOn: self.$app.autoRefreshEnabled) {
-                    CrawlBarOptionLabel(
-                        title: "Run on schedule",
-                        caption: "Refresh this crawler automatically in the background.")
-                }
+                CrawlBarSwitchRow(
+                    title: "Run on schedule",
+                    caption: "Refresh this crawler automatically in the background.",
+                    isOn: self.$app.autoRefreshEnabled)
                     .disabled(!self.app.enabled)
                     .onChange(of: self.app.autoRefreshEnabled) { self.save() }
-                Toggle(isOn: self.usesGlobalRefreshBinding) {
-                    CrawlBarOptionLabel(
-                        title: "Use default schedule",
-                        caption: "Follow the global interval from General settings.")
-                }
+                CrawlBarSwitchRow(
+                    title: "Use default schedule",
+                    caption: "Follow the global interval from General settings.",
+                    isOn: self.usesGlobalRefreshBinding)
                     .disabled(!self.app.enabled || !self.app.autoRefreshEnabled)
             }
             CrawlBarControlRow(
@@ -1415,18 +1561,16 @@ struct CrawlBarAppDetailView: View {
 
     private var gitShareSettings: some View {
         CrawlBarPanel(title: "Git Snapshot") {
-            Toggle(isOn: self.$app.shareEnabled) {
-                CrawlBarOptionLabel(
-                    title: "Manage snapshot",
-                    caption: "Keep a local Git export for this crawler's shareable data.")
-            }
+            CrawlBarSwitchRow(
+                title: "Manage snapshot",
+                caption: "Keep a local Git export for this crawler's shareable data.",
+                isOn: self.$app.shareEnabled)
                 .onChange(of: self.app.shareEnabled) { self.save() }
             if self.hasSnapshotRemote {
-                Toggle(isOn: self.$app.shareAfterRefresh) {
-                    CrawlBarOptionLabel(
-                        title: "Publish after sync",
-                        caption: "Push the snapshot after a scheduled or manual sync.")
-                }
+                CrawlBarSwitchRow(
+                    title: "Publish after sync",
+                    caption: "Push the snapshot after a scheduled or manual sync.",
+                    isOn: self.$app.shareAfterRefresh)
                     .disabled(!self.app.shareEnabled)
                     .onChange(of: self.app.shareAfterRefresh) { self.save() }
                 HStack(spacing: 8) {
@@ -1457,6 +1601,53 @@ struct CrawlBarAppDetailView: View {
                 }
                 if let shareBranch = self.shareBranch {
                     CrawlBarFact(label: "Branch", value: shareBranch)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var cloudArchiveSettings: some View {
+        if self.commandAvailable("cloud-publish") || self.commandAvailable("remote-status") || self.commandAvailable("remote-archives") {
+            CrawlBarPanel(title: "Cloudflare Archive") {
+                CrawlBarOptionLabel(
+                    title: "Remote SQLite archive",
+                    caption: "Publish a compressed SQLite bundle and use the configured Worker archive for live reads.")
+                HStack(spacing: 8) {
+                    if self.commandAvailable("cloud-publish") {
+                        Button {
+                            self.runAction("cloud-publish")
+                        } label: {
+                            Label("Publish Cloud", systemImage: "icloud.and.arrow.up")
+                        }
+                    }
+                    if self.commandAvailable("remote-status") {
+                        Button {
+                            self.runAction("remote-status")
+                        } label: {
+                            Label("Remote Status", systemImage: "antenna.radiowaves.left.and.right")
+                        }
+                    }
+                    if self.commandAvailable("remote-archives") {
+                        Button {
+                            self.runAction("remote-archives")
+                        } label: {
+                            Label("Archives", systemImage: "tray.full")
+                        }
+                    }
+                }
+                .disabled(self.runningAction != nil)
+                if let remote = self.status?.remote {
+                    Divider()
+                    if let endpoint = remote.endpoint?.nilIfBlank {
+                        CrawlBarFact(label: "Endpoint", value: endpoint)
+                    }
+                    if let archive = remote.archive?.nilIfBlank {
+                        CrawlBarFact(label: "Archive", value: archive)
+                    }
+                    if let sqliteBundle = self.status?.sqliteBundle {
+                        CrawlBarFact(label: "Bundle", value: self.bundleSummary(sqliteBundle))
+                    }
                 }
             }
         }
@@ -1632,6 +1823,12 @@ struct CrawlBarAppDetailView: View {
             "Unlock"
         case "publish":
             "Publish"
+        case "cloud-publish":
+            "Cloud Publish"
+        case "remote-status":
+            "Remote Status"
+        case "remote-archives":
+            "Remote Archives"
         case "update":
             "Update"
         case "desktop-cache-import":
@@ -1668,7 +1865,7 @@ struct CrawlBarAppDetailView: View {
     private var databaseSummary: String {
         guard let status else { return "Unknown" }
         if let remoteStore = self.remoteStoreSummary {
-            return remoteStore.shortName
+            return remoteStore.databaseSummary
         }
         if self.app.id == BuiltInCrawlApps.gitcrawlID {
             return self.summaryText(label: "GitHub archives", bytes: self.totalDatabaseBytes)
@@ -1726,8 +1923,8 @@ struct CrawlBarAppDetailView: View {
     }
 
     private var overviewDataScope: String {
-        if self.usesRemoteStore {
-            return "Remote store"
+        if let remoteStore = self.remoteStoreSummary {
+            return remoteStore.dataScope
         }
         if self.primaryDatabase?.counts.isEmpty == false {
             return "Active database"
@@ -1755,8 +1952,17 @@ struct CrawlBarAppDetailView: View {
     private func summaryText(label: String, bytes: Int?) -> String {
         [
             label,
-            bytes.map { ByteCountFormatter.crawlBarFileSize.string(fromByteCount: Int64($0)) },
+            bytes.map { CrawlBarFileSizeText.string(fromByteCount: Int64($0)) },
         ].compactMap { $0?.nilIfBlank }.joined(separator: " · ")
+    }
+
+    private func bundleSummary(_ bundle: CrawlSQLiteBundleStatus) -> String {
+        [
+            bundle.format?.nilIfBlank,
+            bundle.compression?.nilIfBlank,
+            bundle.compressedBytes.map { CrawlBarFileSizeText.string(fromByteCount: Int64($0)) },
+            bundle.partCount.map { "\($0) part\($0 == 1 ? "" : "s")" },
+        ].compactMap { $0 }.joined(separator: " · ")
     }
 
     private var isComingSoon: Bool {
@@ -1772,11 +1978,24 @@ struct CrawlBarAppDetailView: View {
     }
 
     private var remoteStoreSummary: CrawlBarRemoteStoreSummary? {
+        if let remote = self.status?.remote, remote.enabled {
+            let database = self.status?.databases.first(where: { $0.endpoint != nil || $0.archive != nil })
+            let endpoint = remote.endpoint?.nilIfBlank ?? database?.endpoint?.nilIfBlank ?? "Cloudflare remote"
+            let archive = remote.archive?.nilIfBlank ?? database?.archive?.nilIfBlank
+            return CrawlBarRemoteStoreSummary(
+                remote: endpoint,
+                archive: archive,
+                kind: .cloudflare,
+                sqliteBundle: self.status?.sqliteBundle,
+                sqliteObject: self.status?.sqliteObject,
+                lastIngestAt: remote.lastIngestAt ?? remote.lastSyncAt)
+        }
         if self.status?.share?.enabled == true, let remote = self.status?.share?.remote?.nilIfBlank {
             return CrawlBarRemoteStoreSummary(
                 remote: remote,
                 repoPath: self.status?.share?.repoPath?.nilIfBlank,
-                branch: self.status?.share?.branch?.nilIfBlank)
+                branch: self.status?.share?.branch?.nilIfBlank,
+                kind: .gitSnapshot)
         }
         guard self.app.id == BuiltInCrawlApps.gitcrawlID else { return nil }
         var paths = self.status?.databases.compactMap(\.path) ?? []
@@ -1790,7 +2009,8 @@ struct CrawlBarAppDetailView: View {
         return CrawlBarRemoteStoreSummary(
             remote: "https://github.com/openclaw/gitcrawl-store.git",
             repoPath: repoPath,
-            branch: nil)
+            branch: nil,
+            kind: .gitSnapshot)
     }
 
     private var usesGlobalRefreshBinding: Binding<Bool> {
@@ -1818,12 +2038,12 @@ struct CrawlBarAppDetailView: View {
 
     private var nativeAppAvailable: Bool {
         guard let bundleIdentifier = self.manifest?.branding.bundleIdentifier?.nilIfBlank else { return false }
-        return NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) != nil
+        return CrawlBarNativeAppLocator.url(for: bundleIdentifier) != nil
     }
 
     private func openNativeApp() {
         guard let bundleIdentifier = self.manifest?.branding.bundleIdentifier?.nilIfBlank,
-              let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier)
+              let url = CrawlBarNativeAppLocator.url(for: bundleIdentifier)
         else { return }
         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
     }
@@ -1923,6 +2143,27 @@ private struct CrawlBarConfigSection: Identifiable {
     }
 }
 
+struct CrawlBarDetailSection<Content: View>: View {
+    let title: String
+    let content: Content
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(self.title)
+                .font(.headline.weight(.semibold))
+            VStack(alignment: .leading, spacing: 14) {
+                self.content
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
 struct CrawlBarPanel<Content: View>: View {
     var title: String?
     var caption: String?
@@ -1935,10 +2176,11 @@ struct CrawlBarPanel<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             if let title {
                 Text(title)
                     .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
             if let caption {
                 Text(caption)
@@ -1949,7 +2191,13 @@ struct CrawlBarPanel<Content: View>: View {
             VStack(alignment: .leading, spacing: 10) {
                 self.content
             }
+            .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.quaternary.opacity(0.38), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(.white.opacity(0.055))
+            }
         }
     }
 }
@@ -2069,6 +2317,23 @@ struct CrawlBarControlRow<Content: View>: View {
     }
 }
 
+struct CrawlBarSwitchRow: View {
+    let title: String
+    let caption: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 16) {
+            CrawlBarOptionLabel(title: self.title, caption: self.caption)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Toggle(self.title, isOn: self.$isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+        }
+    }
+}
+
 struct CrawlBarOptionLabel: View {
     let title: String
     let caption: String
@@ -2106,17 +2371,86 @@ struct CrawlBarMetricRow: View {
 }
 
 private struct CrawlBarRemoteStoreSummary {
+    enum Kind {
+        case gitSnapshot
+        case cloudflare
+    }
+
     var remote: String
-    var repoPath: String?
-    var branch: String?
+    var archive: String? = nil
+    var repoPath: String? = nil
+    var branch: String? = nil
+    var kind: Kind
+    var sqliteBundle: CrawlSQLiteBundleStatus? = nil
+    var sqliteObject: CrawlSQLiteObjectStatus? = nil
+    var lastIngestAt: Date? = nil
+
+    var title: String {
+        switch self.kind {
+        case .cloudflare:
+            "Cloudflare Archive"
+        case .gitSnapshot:
+            "Remote Store"
+        }
+    }
 
     var shortName: String {
+        if self.kind == .cloudflare {
+            return self.archive?.nilIfBlank ?? "Cloudflare archive"
+        }
         let trimmed = self.remote
             .replacingOccurrences(of: "https://github.com/", with: "")
             .replacingOccurrences(of: "git@github.com:", with: "")
             .replacingOccurrences(of: ".git", with: "")
             .nilIfBlank
         return trimmed ?? "Remote store"
+    }
+
+    var dataScope: String {
+        switch self.kind {
+        case .cloudflare:
+            "Cloudflare remote"
+        case .gitSnapshot:
+            "Remote store"
+        }
+    }
+
+    var databaseSummary: String {
+        guard self.kind == .cloudflare else { return self.shortName }
+        let pieces = [
+            self.shortName,
+            self.sqliteBundle?.compressedBytes.map { CrawlBarFileSizeText.string(fromByteCount: Int64($0)) },
+            self.sqliteBundle?.compression?.nilIfBlank,
+        ].compactMap { $0 }
+        return pieces.isEmpty ? "Cloudflare archive" : pieces.joined(separator: " · ")
+    }
+
+    var bundle: String? {
+        guard let sqliteBundle else { return nil }
+        return [
+            sqliteBundle.format?.nilIfBlank,
+            sqliteBundle.compression?.nilIfBlank,
+        ].compactMap { $0 }.joined(separator: " · ").nilIfBlank
+    }
+
+    var compressed: String? {
+        let values = [
+            sqliteBundle?.compressedBytes.map { CrawlBarFileSizeText.string(fromByteCount: Int64($0)) },
+            sqliteBundle?.rawBytes.map { CrawlBarFileSizeText.string(fromByteCount: Int64($0)) + " raw" },
+            sqliteObject?.bytes.map { CrawlBarFileSizeText.string(fromByteCount: Int64($0)) + " object" },
+        ].compactMap { $0?.nilIfBlank }
+        return values.isEmpty ? nil : values.joined(separator: " / ")
+    }
+
+    var parts: String? {
+        sqliteBundle?.partCount.map { "\($0)" }
+    }
+
+    var lastIngest: String? {
+        guard let lastIngestAt else { return nil }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: lastIngestAt, relativeTo: Date())
     }
 }
 
@@ -2165,7 +2499,7 @@ struct CrawlBarDatabaseRow: View {
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 4) {
                 if let bytes = self.database.bytes {
-                    Text(ByteCountFormatter.crawlBarFileSize.string(fromByteCount: Int64(bytes)))
+                    Text(CrawlBarFileSizeText.string(fromByteCount: Int64(bytes)))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
@@ -2197,6 +2531,10 @@ struct CrawlBarDatabaseRow: View {
             "externaldrive.connected.to.line.below"
         case .logical:
             "square.stack.3d.up"
+        case .remote, .d1, .cloudflareD1:
+            "cloud"
+        case .sqliteBundle:
+            "archivebox"
         }
     }
 }
@@ -2232,6 +2570,8 @@ struct CrawlBarConfigOptionField: View {
         case .boolean:
             Toggle("", isOn: self.booleanBinding)
                 .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
         case .choice:
             Picker("Value", selection: self.$value) {
                 ForEach(self.choices, id: \.self) { choice in
@@ -2328,22 +2668,41 @@ enum CrawlBarStatusLabel {
     }
 }
 
+@MainActor
 enum CrawlBarDateText {
-    @MainActor
-    static func relative(_ date: Date) -> String {
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
+        return formatter
+    }()
+
+    static func relative(_ date: Date) -> String {
+        self.relativeFormatter.localizedString(for: date, relativeTo: Date())
     }
 }
 
-extension ByteCountFormatter {
-    static var crawlBarFileSize: ByteCountFormatter {
+enum CrawlBarFileSizeText {
+    private static let formatter = CrawlBarLockedByteCountFormatter()
+
+    static func string(fromByteCount byteCount: Int64) -> String {
+        self.formatter.string(fromByteCount: byteCount)
+    }
+}
+
+private final class CrawlBarLockedByteCountFormatter: @unchecked Sendable {
+    private let lock = NSLock()
+    private let formatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useKB, .useMB, .useGB]
         formatter.countStyle = .file
         formatter.includesUnit = true
         formatter.includesCount = true
         return formatter
+    }()
+
+    func string(fromByteCount byteCount: Int64) -> String {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.formatter.string(fromByteCount: byteCount)
     }
 }

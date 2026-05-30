@@ -2,9 +2,11 @@ import Foundation
 
 public struct CrawlNativeConfigStore: @unchecked Sendable {
     private let fileManager: FileManager
+    private let cache: CrawlNativeConfigCache
 
-    public init(fileManager: FileManager = .default) {
+    public init(fileManager: FileManager = .default, cache: CrawlNativeConfigCache = .shared) {
         self.fileManager = fileManager
+        self.cache = cache
     }
 
     public func resolvedConfigValues(
@@ -14,7 +16,7 @@ public struct CrawlNativeConfigStore: @unchecked Sendable {
         -> [String: String]
     {
         let path = self.configPath(appConfig: appConfig, manifest: manifest)
-        let nativeValues = path.flatMap { try? self.read(path: $0, manifest: manifest) } ?? [:]
+        let nativeValues = path.flatMap { self.cachedRead(path: $0, manifest: manifest) } ?? [:]
         let merged = nativeValues.merging(appConfig.configValues) { _, explicit in explicit }
         guard !includeSecrets else { return merged }
         let secretIDs = Set(manifest.configOptions.filter { $0.kind == .secret }.map(\.id))
@@ -35,6 +37,7 @@ public struct CrawlNativeConfigStore: @unchecked Sendable {
             manifest: manifest,
             path: path,
             clearMissingSecretIDs: clearMissingSecretIDs)
+        self.cache.remove(path: PathExpander.expandHome(path), appID: manifest.id)
     }
 
     public func write(
@@ -59,9 +62,12 @@ public struct CrawlNativeConfigStore: @unchecked Sendable {
         let lines = try String(contentsOfFile: path, encoding: .utf8).split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         var values: [String: String] = [:]
         var section = ""
-        let options = manifest.configOptions.compactMap { option -> (id: String, key: String)? in
-            guard let key = option.configKey?.nilIfBlank else { return nil }
-            return (option.id, key)
+        var optionIDsByConfigKey: [String: String] = [:]
+        for option in manifest.configOptions {
+            guard let key = option.configKey?.nilIfBlank,
+                  optionIDsByConfigKey[key] == nil
+            else { continue }
+            optionIDsByConfigKey[key] = option.id
         }
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -75,11 +81,42 @@ public struct CrawlNativeConfigStore: @unchecked Sendable {
             guard let equals = trimmed.firstIndex(of: "=") else { continue }
             let key = trimmed[..<equals].trimmingCharacters(in: .whitespaces)
             let fullKey = section.isEmpty ? key : "\(section).\(key)"
-            guard let option = options.first(where: { $0.key == fullKey }) else { continue }
+            guard let optionID = optionIDsByConfigKey[fullKey] else { continue }
             let raw = trimmed[trimmed.index(after: equals)...].trimmingCharacters(in: .whitespaces)
-            values[option.id] = Self.decodeTomlScalar(raw)
+            values[optionID] = Self.decodeTomlScalar(raw)
         }
         return values
+    }
+
+    private func cachedRead(path: String, manifest: CrawlAppManifest) -> [String: String] {
+        let expandedPath = PathExpander.expandHome(path)
+        guard self.fileManager.fileExists(atPath: expandedPath) else { return [:] }
+        let modificationDate = (try? URL(fileURLWithPath: expandedPath).resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+        let manifestSignature = Self.configOptionSignature(for: manifest)
+        if let cached = self.cache.values(
+            path: expandedPath,
+            appID: manifest.id,
+            manifestSignature: manifestSignature,
+            modificationDate: modificationDate)
+        {
+            return cached
+        }
+        let values = (try? self.read(path: expandedPath, manifest: manifest)) ?? [:]
+        self.cache.set(
+            values,
+            path: expandedPath,
+            appID: manifest.id,
+            manifestSignature: manifestSignature,
+            modificationDate: modificationDate)
+        return values
+    }
+
+    private static func configOptionSignature(for manifest: CrawlAppManifest) -> String {
+        manifest.configOptions
+            .compactMap { option in
+                option.configKey?.nilIfBlank.map { "\(option.id)=\($0)" }
+            }
+            .joined(separator: "\u{0}")
     }
 
     private func write(
@@ -217,5 +254,48 @@ public struct CrawlNativeConfigStore: @unchecked Sendable {
         return String(value.dropFirst().dropLast())
             .replacingOccurrences(of: "\\\"", with: "\"")
             .replacingOccurrences(of: "\\\\", with: "\\")
+    }
+}
+
+public final class CrawlNativeConfigCache: @unchecked Sendable {
+    public static let shared = CrawlNativeConfigCache()
+
+    private struct Entry {
+        var modificationDate: Date?
+        var values: [String: String]
+    }
+
+    private let lock = NSLock()
+    private var entries: [String: Entry] = [:]
+
+    public init() {}
+
+    func values(path: String, appID: CrawlAppID, manifestSignature: String, modificationDate: Date?) -> [String: String]? {
+        let key = self.key(path: path, appID: appID, manifestSignature: manifestSignature)
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        guard let entry = self.entries[key], entry.modificationDate == modificationDate else {
+            return nil
+        }
+        return entry.values
+    }
+
+    func set(_ values: [String: String], path: String, appID: CrawlAppID, manifestSignature: String, modificationDate: Date?) {
+        let key = self.key(path: path, appID: appID, manifestSignature: manifestSignature)
+        self.lock.lock()
+        self.entries[key] = Entry(modificationDate: modificationDate, values: values)
+        self.lock.unlock()
+    }
+
+    func remove(path: String, appID: CrawlAppID) {
+        self.lock.lock()
+        self.entries = self.entries.filter { key, _ in
+            !key.hasPrefix("\(appID.rawValue)\u{0}\(path)\u{0}")
+        }
+        self.lock.unlock()
+    }
+
+    private func key(path: String, appID: CrawlAppID, manifestSignature: String) -> String {
+        "\(appID.rawValue)\u{0}\(path)\u{0}\(manifestSignature)"
     }
 }

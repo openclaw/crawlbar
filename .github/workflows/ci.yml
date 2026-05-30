@@ -11,6 +11,8 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Brand icon compatibility
+        run: Scripts/check_brand_icons.sh
       - name: Build
         run: swift build
       - name: Selftest
@@ -22,6 +24,8 @@ jobs:
           swift run crawlbarctl config validate
       - name: Package app
         run: Scripts/package_app.sh
+      - name: Packaged brand icon compatibility
+        run: Scripts/check_brand_icons.sh dist/CrawlBar.app
       - name: Packaged CLI smoke
         run: |
           dist/CrawlBar.app/Contents/Helpers/crawlbar apps --json

@@ -16,6 +16,8 @@ public enum CrawlDatabaseInventory {
             return Self.singleSQLiteResource(status: status, manifest: manifest, label: "Slack archive", role: "Workspace database")
         case BuiltInCrawlApps.discrawlID:
             return Self.singleSQLiteResource(status: status, manifest: manifest, label: "Discord archive", role: "Guild database")
+        case BuiltInCrawlApps.telecrawlID:
+            return Self.singleSQLiteResource(status: status, manifest: manifest, label: "Telegram archive", role: "Desktop archive")
         case BuiltInCrawlApps.notcrawlID:
             return Self.notcrawlResources(status: status, manifest: manifest)
         default:

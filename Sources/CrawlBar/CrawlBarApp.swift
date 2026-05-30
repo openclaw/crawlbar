@@ -1,5 +1,6 @@
 import AppKit
 import CrawlBarCore
+import SwiftUI
 
 @main
 @MainActor
@@ -14,11 +15,15 @@ enum CrawlBarApp {
 }
 
 @MainActor
-final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
+final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
+    private let menuItemFactory = CrawlBarMenuItemFactory()
     private var refreshTimer: Timer?
     private var refreshAnimationTimer: Timer?
     private var refreshAnimationFrame = 0
+    private var pendingMenuReloadTask: Task<Void, Never>?
+    private var isMenuOpen = false
+    private var menuNeedsReloadAfterClose = false
     private let settingsWindowController = CrawlBarSettingsWindowController()
     private let model = CrawlBarMenuModel()
 
@@ -37,49 +42,105 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
         self.settingsWindowController.onClose = { [weak self] in
             self?.hideFromApplicationSwitcher()
         }
+        if let appIcon = CrawlBarIconFactory.appIconImage() {
+            NSApplication.shared.applicationIconImage = appIcon
+        }
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.imagePosition = .imageLeading
         self.statusItem = statusItem
         self.updateStatusButtonImage()
         self.reloadMenu()
         self.model.refreshAll { [weak self] in
-            self?.reloadMenu()
+            self?.scheduleMenuReload()
         }
         self.scheduleRefreshTimer()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         CrawlBarLog.app.notice("CrawlBar terminated")
+        self.pendingMenuReloadTask?.cancel()
         NotificationCenter.default.removeObserver(self)
     }
 
     private func reloadMenu() {
-        let menu = NSMenu()
+        self.pendingMenuReloadTask?.cancel()
+        self.pendingMenuReloadTask = nil
+        let startedAt = CFAbsoluteTimeGetCurrent()
+        let menu = self.statusItem?.menu ?? NSMenu()
         menu.autoenablesItems = false
-        let title = self.model.isRefreshing ? "Refreshing..." : "Refresh All"
-        menu.addItem(NSMenuItem(title: title, action: #selector(Self.refreshAll(_:)), keyEquivalent: "r", target: self))
-        menu.addItem(.separator())
+        menu.delegate = self
+        menu.removeAllItems()
 
-        for installation in self.model.visibleInstallations {
+        menu.addItem(self.viewItem(for: CrawlBarMenuHeaderView(
+            installations: self.model.visibleInstallations,
+            statuses: self.model.statuses,
+            isRefreshing: self.model.isRefreshing,
+            refreshFrequency: self.model.refreshFrequency), enabled: false))
+        menu.addItem(self.viewItem(for: CrawlBarMenuSeparatorRowView(), enabled: false))
+
+        for (index, installation) in self.model.visibleInstallations.enumerated() {
             menu.addItem(self.appMenuItem(for: installation))
+            if index < self.model.visibleInstallations.count - 1 {
+                menu.addItem(self.viewItem(for: CrawlBarMenuSeparatorRowView(), enabled: false))
+            }
         }
 
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Open Logs", action: #selector(Self.openLogs(_:)), keyEquivalent: "l", target: self))
-        menu.addItem(NSMenuItem(title: "Settings...", action: #selector(Self.showSettings(_:)), keyEquivalent: ",", target: self))
-        menu.addItem(NSMenuItem(title: "Quit CrawlBar", action: #selector(Self.quit(_:)), keyEquivalent: "q", target: self))
+        let refreshTitle = self.model.isRefreshing ? "Refreshing..." : "Refresh All"
+        menu.addItem(self.actionItem(title: refreshTitle, action: #selector(Self.refreshAll(_:)), keyEquivalent: "r", systemImage: "arrow.clockwise"))
+        menu.addItem(self.actionItem(title: "Open Logs", action: #selector(Self.openLogs(_:)), keyEquivalent: "l", systemImage: "folder"))
+        menu.addItem(self.actionItem(title: "Settings...", action: #selector(Self.showSettings(_:)), keyEquivalent: ",", systemImage: "gearshape"))
+        menu.addItem(.separator())
+        menu.addItem(self.actionItem(title: "Quit CrawlBar", action: #selector(Self.quit(_:)), keyEquivalent: "q", systemImage: "power"))
+
         self.statusItem?.menu = menu
+        if let button = self.statusItem?.button {
+            button.target = nil
+            button.action = nil
+            button.isEnabled = true
+        }
+        self.menuItemFactory.refreshViewHeights(in: menu)
         self.syncRefreshAnimation()
+        let elapsedMilliseconds = (CFAbsoluteTimeGetCurrent() - startedAt) * 1000
+        CrawlBarLog.app.debug("Reloaded menu in \(elapsedMilliseconds, privacy: .public)ms")
+    }
+
+    private func scheduleMenuReload() {
+        guard !self.isMenuOpen else {
+            self.menuNeedsReloadAfterClose = true
+            return
+        }
+        self.pendingMenuReloadTask?.cancel()
+        self.pendingMenuReloadTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            guard !Task.isCancelled else { return }
+            self?.reloadMenu()
+        }
     }
 
     private func appMenuItem(for installation: CrawlAppInstallation) -> NSMenuItem {
-        let status = self.model.statuses[installation.id]
-        let state = self.effectiveState(for: installation, status: status)
-        let title = CrawlBarCrawlerTitle.text(for: installation.id, manifest: installation.manifest)
-        let item = NSMenuItem(title: title, action: #selector(Self.showSettingsForApp(_:)), keyEquivalent: "")
-        item.target = self
+        let card = CrawlBarMenuCardView(
+            installation: installation,
+            status: self.model.statuses[installation.id],
+            onOpen: { [weak self] in self?.openSettings(appID: installation.id) })
+        let item = self.viewItem(for: card, enabled: true, highlightable: true)
+        item.title = CrawlBarCrawlerTitle.text(for: installation.id, manifest: installation.manifest)
         item.representedObject = installation.id
-        item.image = CrawlBarIconFactory.statusDotImage(for: state)
+        item.target = self
+        item.action = #selector(Self.showSettingsForAppMenuItem(_:))
+        return item
+    }
+
+    private func viewItem(for content: some View, enabled: Bool, highlightable: Bool = false) -> NSMenuItem {
+        self.menuItemFactory.makeItem(for: content, enabled: enabled, highlightable: highlightable)
+    }
+
+    private func actionItem(title: String, action: Selector, keyEquivalent: String = "", systemImage: String? = nil) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
+        item.target = self
+        if let systemImage {
+            item.image = NSImage(systemSymbolName: systemImage, accessibilityDescription: title)
+        }
         return item
     }
 
@@ -99,7 +160,7 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
         self.refreshTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.model.runDueAutoSync {
-                    self?.reloadMenu()
+                    self?.scheduleMenuReload()
                 }
             }
         }
@@ -139,28 +200,24 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func refreshAll(_ sender: Any?) {
         self.model.refreshAll { [weak self] in
-            self?.reloadMenu()
+            self?.scheduleMenuReload()
         }
         self.reloadMenu()
     }
 
     @objc private func showSettings(_ sender: Any?) {
-        CrawlBarLog.app.debug("Opening settings")
-        self.showInApplicationSwitcher()
-        self.settingsWindowController.show()
-        self.model.reloadInstallations()
-        self.scheduleRefreshTimer()
-        self.reloadMenu()
+        self.openSettings(appID: nil)
     }
 
-    @objc private func showSettingsForApp(_ sender: NSMenuItem) {
-        let appID = sender.representedObject as? CrawlAppID
-        CrawlBarLog.app.debug("Opening settings from status menu")
+    @objc private func showSettingsForAppMenuItem(_ sender: NSMenuItem) {
+        self.openSettings(appID: sender.representedObject as? CrawlAppID)
+    }
+
+    private func openSettings(appID: CrawlAppID?) {
+        self.statusItem?.menu?.cancelTracking()
+        CrawlBarLog.app.debug("Opening settings")
         self.showInApplicationSwitcher()
         self.settingsWindowController.show(appID: appID)
-        self.model.reloadInstallations()
-        self.scheduleRefreshTimer()
-        self.reloadMenu()
     }
 
     private func showInApplicationSwitcher() {
@@ -173,17 +230,43 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openLogs(_ sender: Any?) {
+        self.statusItem?.menu?.cancelTracking()
         CrawlBarLog.app.debug("Opening action logs folder")
         NSWorkspace.shared.open(CrawlActionLogStore.defaultDirectory())
     }
 
     @objc private func quit(_ sender: Any?) {
+        self.statusItem?.menu?.cancelTracking()
         CrawlBarLog.app.notice("Quit requested")
         NSApplication.shared.terminate(nil)
     }
 
+    func menuWillOpen(_ menu: NSMenu) {
+        self.isMenuOpen = true
+        if self.pendingMenuReloadTask != nil {
+            self.reloadMenu()
+            self.isMenuOpen = true
+        }
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        self.isMenuOpen = false
+        self.menuItemFactory.clearHighlights(in: menu)
+        if self.menuNeedsReloadAfterClose {
+            self.menuNeedsReloadAfterClose = false
+            self.reloadMenu()
+        }
+    }
+
+    func menu(_ menu: NSMenu, willHighlight item: NSMenuItem?) {
+        for menuItem in menu.items {
+            guard let view = menuItem.view as? CrawlBarMenuItemHighlighting else { continue }
+            view.setHighlighted(menuItem == item && menuItem.isEnabled)
+        }
+    }
+
     @objc private func statusesDidChange(_ notification: Notification) {
-        self.reloadMenu()
+        self.scheduleMenuReload()
     }
 
     @objc private func configDidChange(_ notification: Notification) {
@@ -266,8 +349,19 @@ final class CrawlBarMenuModel: NSObject {
                 self.installations = installations
                 onComplete()
             }
+            let partitioned = Self.partitionStatuses(installations: installations, statusService: statusService)
+            if !partitioned.immediate.isEmpty {
+                await MainActor.run {
+                    guard self.refreshGeneration == generation else { return }
+                    for status in partitioned.immediate {
+                        self.statuses[status.appID] = status
+                    }
+                    CrawlBarStateBroadcast.statusesDidChange(Dictionary(uniqueKeysWithValues: partitioned.immediate.map { ($0.appID, $0) }))
+                    onComplete()
+                }
+            }
             await withTaskGroup(of: CrawlAppStatus.self) { group in
-                for installation in installations {
+                for installation in partitioned.commandInstallations {
                     group.addTask {
                         guard !Task.isCancelled else {
                             return CrawlAppStatus(appID: installation.id, state: .unknown, summary: "Refresh cancelled")
@@ -292,6 +386,23 @@ final class CrawlBarMenuModel: NSObject {
                 onComplete()
             }
         }
+    }
+
+    nonisolated private static func partitionStatuses(
+        installations: [CrawlAppInstallation],
+        statusService: CrawlStatusService)
+        -> (immediate: [CrawlAppStatus], commandInstallations: [CrawlAppInstallation])
+    {
+        var immediate: [CrawlAppStatus] = []
+        var commandInstallations: [CrawlAppInstallation] = []
+        for installation in installations {
+            if let status = statusService.immediateStatus(for: installation) {
+                immediate.append(status)
+            } else {
+                commandInstallations.append(installation)
+            }
+        }
+        return (immediate, commandInstallations)
     }
 
     func runDueAutoSync(onComplete: @escaping @MainActor () -> Void) {

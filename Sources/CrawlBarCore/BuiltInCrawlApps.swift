@@ -4,6 +4,7 @@ public enum BuiltInCrawlApps {
     public static let gitcrawlID = CrawlAppID(rawValue: "gitcrawl")
     public static let slacrawlID = CrawlAppID(rawValue: "slacrawl")
     public static let discrawlID = CrawlAppID(rawValue: "discrawl")
+    public static let telecrawlID = CrawlAppID(rawValue: "telecrawl")
     public static let notcrawlID = CrawlAppID(rawValue: "notcrawl")
     public static let gogcliID = CrawlAppID(rawValue: "gogcli")
     public static let wacliID = CrawlAppID(rawValue: "wacli")
@@ -14,6 +15,7 @@ public enum BuiltInCrawlApps {
         Self.gitcrawl,
         Self.slacrawl,
         Self.discrawl,
+        Self.telecrawl,
         Self.notcrawl,
         Self.gogcli,
         Self.wacli,
@@ -21,8 +23,10 @@ public enum BuiltInCrawlApps {
         Self.graincrawl,
     ]
 
+    public static let allByID = Dictionary(uniqueKeysWithValues: Self.all.map { ($0.id, $0) })
+
     public static func manifest(for id: CrawlAppID) -> CrawlAppManifest? {
-        self.all.first { $0.id == id }
+        self.allByID[id]
     }
 
     public static let gitcrawl = CrawlAppManifest(
@@ -47,8 +51,11 @@ public enum BuiltInCrawlApps {
             "doctor": ["doctor", "--json"],
             "refresh": ["sync", "--json"],
             "query": ["search", "--json"],
+            "remote-status": ["remote", "status", "--json"],
+            "remote-archives": ["remote", "archives", "--json"],
+            "cloud-publish": ["cloud", "publish", "--json"],
         ],
-        capabilities: [.status, .doctor, .refresh, .search],
+        capabilities: [.status, .doctor, .refresh, .search, .remoteArchive, .cloudPublish],
         statusRequiresSecrets: false,
         privacy: .init(exportsSecrets: false, localOnlyScopes: ["repositories", "issues", "pull requests"]),
         configOptions: [
@@ -127,8 +134,11 @@ public enum BuiltInCrawlApps {
             "desktop-cache-import": ["--json", "cache-import"],
             "publish": ["--json", "publish"],
             "update": ["--json", "update"],
+            "remote-status": ["remote", "status", "--json"],
+            "remote-archives": ["remote", "archives", "--json"],
+            "cloud-publish": ["cloud", "publish", "--sqlite-only", "--json"],
         ],
-        capabilities: [.status, .doctor, .refresh, .publish, .subscribe, .update, .desktopCache],
+        capabilities: [.status, .doctor, .refresh, .publish, .subscribe, .update, .desktopCache, .remoteArchive, .cloudPublish],
         statusRequiresSecrets: false,
         privacy: .init(containsPrivateMessages: true, exportsSecrets: false, localOnlyScopes: ["@me"]),
         configOptions: [
@@ -141,6 +151,35 @@ public enum BuiltInCrawlApps {
             .init(id: "ai", title: "Embeddings", optionIDs: ["openai_api_key", "embedding_model"]),
         ],
         install: .init(method: .homebrew, package: "vincentkoc/tap/discrawl"))
+
+    public static let telecrawl = CrawlAppManifest(
+        id: Self.telecrawlID,
+        displayName: "Telegram",
+        description: "Local-first Telegram Desktop archive crawler",
+        binary: .init(name: "telecrawl"),
+        branding: .init(
+            symbolName: "paperplane.fill",
+            accentColor: "#229ED9",
+            bundleIdentifier: "org.telegram.desktop"),
+        paths: .init(
+            defaultConfig: "~/.telecrawl/backup.json",
+            defaultDatabase: "~/.telecrawl/telecrawl.db",
+            defaultCache: "~/.telecrawl/cache",
+            defaultLogs: "~/.telecrawl/logs"),
+        commands: [
+            "metadata": ["metadata"],
+            "status": ["--json", "status"],
+            "doctor": ["--json", "doctor"],
+            "refresh": ["--json", "import"],
+            "search": ["--json", "search"],
+        ],
+        capabilities: [.status, .doctor, .refresh, .search],
+        statusRequiresSecrets: false,
+        privacy: .init(
+            containsPrivateMessages: true,
+            exportsSecrets: false,
+            localOnlyScopes: ["telegram-desktop", "sqlite", "encrypted-git-backup"]),
+        install: .init(method: .homebrew, package: "steipete/tap/telecrawl"))
 
     public static let notcrawl = CrawlAppManifest(
         id: Self.notcrawlID,
@@ -187,7 +226,7 @@ public enum BuiltInCrawlApps {
     public static let gogcli = CrawlAppManifest(
         id: Self.gogcliID,
         displayName: "Google",
-        description: "Google account connector through gog",
+        description: "Google Workspace and account automation",
         binary: .init(name: "gog"),
         execution: .init(
             kind: .local,
@@ -199,15 +238,16 @@ public enum BuiltInCrawlApps {
         branding: .init(symbolName: "g.circle", accentColor: "#4285F4"),
         paths: .init(
             defaultConfig: "~/Library/Application Support/gogcli/config.json",
-            defaultCache: "~/Library/Caches/gogcli",
+            defaultCache: "~/Library/Application Support/gogcli",
             defaultLogs: "~/Library/Logs/gogcli"),
         commands: [
-            "status": ["--no-input", "auth", "doctor", "--check", "--json"],
-            "doctor": ["--no-input", "auth", "doctor", "--check", "--json"],
-            "search": ["--no-input", "search", "--json"],
+            "status": ["auth", "list", "--check", "--json", "--no-input"],
+            "doctor": ["auth", "doctor", "--check", "--json", "--no-input"],
+            "search": ["--json", "--no-input", "search"],
         ],
         capabilities: [.status, .doctor, .search],
-        privacy: .init(exportsSecrets: false, localOnlyScopes: ["Google account metadata", "Drive search"]),
+        statusRequiresSecrets: false,
+        privacy: .init(exportsSecrets: false, localOnlyScopes: ["Google account config", "OAuth token metadata"]),
         configOptions: [
             .init(id: "execution_mode", label: "Run location", kind: .choice, help: "Run gog on this Mac or over SSH on another machine.", defaultValue: "local", choices: ["local", "remote"]),
             .init(id: "remote_target", label: "SSH target", help: "SSH target that can run gog.", placeholder: "user@example-host"),
@@ -217,12 +257,13 @@ public enum BuiltInCrawlApps {
         configSections: [
             .init(id: "execution", title: "Execution", optionIDs: ["execution_mode"]),
             .init(id: "remote", title: "Remote Host", optionIDs: ["remote_target", "remote_run_as", "remote_env_file"]),
-        ])
+        ],
+        install: .init(method: .homebrew, package: "openclaw/tap/gogcli"))
 
     public static let wacli = CrawlAppManifest(
         id: Self.wacliID,
         displayName: "WhatsApp",
-        description: "WhatsApp message archive connector",
+        description: "WhatsApp linked-device message archive",
         binary: .init(name: "wacli"),
         execution: .init(
             kind: .local,
@@ -235,19 +276,20 @@ public enum BuiltInCrawlApps {
             accentColor: "#25D366",
             bundleIdentifier: "net.whatsapp.WhatsApp"),
         paths: .init(
-            defaultConfig: "~/.config/wacli/config.toml",
-            configEnv: "WACLI_CONFIG",
-            defaultDatabase: "~/.config/wacli/wacli.db",
-            defaultCache: "~/.config/wacli/cache",
-            defaultLogs: "~/.config/wacli/logs",
-            defaultShare: "~/.config/wacli/share"),
+            defaultConfig: "~/.wacli/config.yaml",
+            defaultDatabase: "~/.wacli/wacli.db",
+            defaultCache: "~/.wacli",
+            defaultLogs: "~/.wacli/logs",
+            defaultShare: "~/.wacli/share"),
         commands: [
-            "status": ["--account", "{config:account}", "--read-only", "doctor", "--json"],
-            "doctor": ["--account", "{config:account}", "--read-only", "doctor", "--json"],
-            "search": ["--account", "{config:account}", "--read-only", "--json", "messages", "search"],
+            "status": ["--read-only", "--json", "doctor"],
+            "doctor": ["--read-only", "--json", "doctor"],
+            "refresh": ["--json", "sync", "--once"],
+            "search": ["--read-only", "--json", "messages", "search"],
         ],
-        capabilities: [.status, .doctor, .search],
-        privacy: .init(containsPrivateMessages: true, exportsSecrets: false, localOnlyScopes: ["WhatsApp store"]),
+        capabilities: [.status, .doctor, .refresh, .search],
+        statusRequiresSecrets: false,
+        privacy: .init(containsPrivateMessages: true, exportsSecrets: false, localOnlyScopes: ["WhatsApp chats", "contacts", "messages"]),
         configOptions: [
             .init(id: "execution_mode", label: "Run location", kind: .choice, help: "Run wacli on this Mac or over SSH on another machine.", defaultValue: "local", choices: ["local", "remote"]),
             .init(id: "remote_target", label: "SSH target", help: "SSH target that can run wacli, for example user@example-host.", placeholder: "user@example-host"),
@@ -258,7 +300,8 @@ public enum BuiltInCrawlApps {
             .init(id: "execution", title: "Execution", optionIDs: ["execution_mode"]),
             .init(id: "remote", title: "Remote Host", optionIDs: ["remote_target", "remote_run_as"]),
             .init(id: "whatsapp", title: "WhatsApp Account", optionIDs: ["account"]),
-        ])
+        ],
+        install: .init(method: .homebrew, package: "openclaw/tap/wacli"))
 
     public static let birdclaw = CrawlAppManifest(
         id: Self.birdclawID,

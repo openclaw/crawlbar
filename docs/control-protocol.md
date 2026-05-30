@@ -32,9 +32,12 @@ also expose the same payload through `metadata --json`.
     "doctor": ["doctor", "--json"],
     "refresh": ["sync", "--json"],
     "publish": ["publish", "--json"],
-    "update": ["update", "--json"]
+    "update": ["update", "--json"],
+    "remote-status": ["remote", "status", "--json"],
+    "remote-archives": ["remote", "archives", "--json"],
+    "cloud-publish": ["cloud", "publish", "--json"]
   },
-  "capabilities": ["status", "doctor", "refresh", "publish", "update"],
+  "capabilities": ["status", "doctor", "refresh", "publish", "update", "remote_archive", "cloud_publish"],
   "config_options": [
     {
       "id": "api_token",
@@ -81,6 +84,8 @@ CrawlBar accepts varied JSON, then normalizes known fields into one status model
 - `last_sync_at`, `last_import_at`, `updated_at`, or epoch values become freshness.
 - `db_path`, `database_path`, `db_bytes`, and `wal_bytes` become storage metadata.
 - `share` or `sharing` becomes share/export state.
+- `remote` becomes Cloudflare or other remote archive state.
+- `sqlite_object` and `sqlite_bundle` become optional remote SQLite archive metadata.
 
 Unknown fields are allowed. The app should not break when a crawler adds extra data.
 
@@ -93,6 +98,8 @@ The preferred future shape is a `crawlkit`-owned status envelope with:
 - effective config/database/cache/log/share paths from `configkit`.
 - freshness from `syncstate`.
 - share/export state from `gitshare` and `pack`.
+- remote archive state from `remote`, including endpoint, archive, ingest time,
+  D1 database rows, and optional R2 SQLite object/bundle metadata.
 - warnings/errors with no secret values.
 
 ## Configuration
@@ -116,6 +123,10 @@ Actions are manifest command arrays. CrawlBar does not shell-expand them.
 - `query` should run a local read-only search or SQL-ish query. CrawlBar passes
   user query text as additional argv after the manifest command array.
 - `publish`, `update`, and exporter actions are optional and should return JSON when possible.
+- `remote-status` and `remote-archives` should be read-only wrappers around
+  Cloudflare or equivalent remote archive status/listing commands.
+- `cloud-publish` may upload rows and compressed SQLite bundle parts to a
+  remote service; CLIs should keep older git snapshot publish actions separate.
 - desktop-cache actions should use public names such as `desktop-cache-import`,
   `desktopcache`, or `tap`.
   Existing `wiretap` command names can stay as backward-compatible aliases, but

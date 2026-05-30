@@ -122,7 +122,7 @@ public struct CrawlBarAppConfig: Codable, Equatable, Sendable, Identifiable {
 }
 
 public struct CrawlBarConfig: Codable, Equatable, Sendable {
-    public static let currentVersion = 1
+    public static let currentVersion = 2
 
     public var version: Int
     public var refreshFrequency: RefreshFrequency
@@ -152,6 +152,9 @@ public struct CrawlBarConfig: Codable, Equatable, Sendable {
                 app.autoRefreshEnabled = false
                 app.shareEnabled = false
                 app.shareAfterRefresh = false
+            } else if self.version < 2, Self.newlyAvailableAppIDs.contains(app.id), !app.enabled, !app.showInMenuBar {
+                app.enabled = true
+                app.showInMenuBar = true
             }
             normalizedApps.append(app)
         }
@@ -165,6 +168,11 @@ public struct CrawlBarConfig: Codable, Equatable, Sendable {
             manifestDirectories: self.manifestDirectories.isEmpty ? ["~/.crawlbar/apps"] : self.manifestDirectories,
             apps: normalizedApps)
     }
+
+    private static let newlyAvailableAppIDs: Set<CrawlAppID> = [
+        BuiltInCrawlApps.gogcliID,
+        BuiltInCrawlApps.wacliID,
+    ]
 
     public func appConfig(for id: CrawlAppID) -> CrawlBarAppConfig? {
         self.apps.first { $0.id == id }
@@ -212,22 +220,34 @@ public struct CrawlBarConfigStore: @unchecked Sendable {
     public var fileURL: URL
     private let fileManager: FileManager
     private let secretStore: CrawlSecretStore
+    private let cache: CrawlBarConfigCache
 
     public init(
         fileURL: URL = Self.defaultURL(),
         fileManager: FileManager = .default,
-        secretStore: CrawlSecretStore = CrawlSecretStore())
+        secretStore: CrawlSecretStore = CrawlSecretStore(),
+        cache: CrawlBarConfigCache = .shared)
     {
         self.fileURL = fileURL
         self.fileManager = fileManager
         self.secretStore = secretStore
+        self.cache = cache
     }
 
     public func load(includeSecrets: Bool = false) throws -> CrawlBarConfig? {
         guard self.fileManager.fileExists(atPath: self.fileURL.path) else { return nil }
+        let modificationDate = self.modificationDate(for: self.fileURL)
+        if !includeSecrets,
+           let cached = self.cache.config(path: self.fileURL.path, modificationDate: modificationDate)
+        {
+            return cached
+        }
         let data = try Data(contentsOf: self.fileURL)
         do {
             let config = try CrawlCoding.makeJSONDecoder().decode(CrawlBarConfig.self, from: data).normalized()
+            if !includeSecrets {
+                self.cache.set(config, path: self.fileURL.path, modificationDate: modificationDate)
+            }
             return includeSecrets ? self.configWithSecrets(config) : config
         } catch {
             throw CrawlBarConfigStoreError.decodeFailed(error.localizedDescription)
@@ -262,6 +282,7 @@ public struct CrawlBarConfigStore: @unchecked Sendable {
             [.posixPermissions: NSNumber(value: Int16(0o600))],
             ofItemAtPath: self.fileURL.path)
         #endif
+        self.cache.set(persisted, path: self.fileURL.path, modificationDate: self.modificationDate(for: self.fileURL))
     }
 
     private func configWithSecrets(_ config: CrawlBarConfig) -> CrawlBarConfig {
@@ -316,10 +337,43 @@ public struct CrawlBarConfigStore: @unchecked Sendable {
             .map { ($0.id, $0) })
     }
 
+    private func modificationDate(for url: URL) -> Date? {
+        (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+    }
+
     public static func defaultURL(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
         home
             .appendingPathComponent(".crawlbar", isDirectory: true)
             .appendingPathComponent("config.json")
+    }
+}
+
+public final class CrawlBarConfigCache: @unchecked Sendable {
+    public static let shared = CrawlBarConfigCache()
+
+    private struct Entry {
+        var modificationDate: Date?
+        var config: CrawlBarConfig
+    }
+
+    private let lock = NSLock()
+    private var entries: [String: Entry] = [:]
+
+    public init() {}
+
+    func config(path: String, modificationDate: Date?) -> CrawlBarConfig? {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        guard let entry = self.entries[path], entry.modificationDate == modificationDate else {
+            return nil
+        }
+        return entry.config
+    }
+
+    func set(_ config: CrawlBarConfig, path: String, modificationDate: Date?) {
+        self.lock.lock()
+        self.entries[path] = Entry(modificationDate: modificationDate, config: config)
+        self.lock.unlock()
     }
 }
 
