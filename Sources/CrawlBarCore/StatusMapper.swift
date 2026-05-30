@@ -415,12 +415,9 @@ public struct CrawlStatusMapper: Sendable {
 
         let account = self.firstObject(["account"], in: object) ?? [:]
         let config = self.firstObject(["config"], in: object) ?? [:]
-        let credentialsExist = self.boolValue(["credentials_exists"], in: account) ?? false
         let serviceAccountConfigured = self.boolValue(["service_account_configured"], in: account) ?? false
-        let email = self.stringValue(["email", "account"], in: account)
-        let state: CrawlAppState = (serviceAccountConfigured || (credentialsExist && email != nil)) ? .current : .needsAuth
-        let summary = email.map { "Google account \($0) is ready" }
-            ?? (state == .current ? "Google account is ready" : "Google account needs auth")
+        let state: CrawlAppState = serviceAccountConfigured ? .current : .needsAuth
+        let summary = state == .current ? "Google service account configured" : "Google account needs auth"
         let warnings = self.boolValue(["exists"], in: config) == false
             ? ["gog config file not found"]
             : []

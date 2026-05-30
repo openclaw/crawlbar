@@ -1362,8 +1362,8 @@ enum CrawlBarSelfTest {
             startedAt: Date(),
             finishedAt: Date())
         let ready = CrawlStatusMapper().status(from: readyResult, manifest: BuiltInCrawlApps.gogcli)
-        try Self.expect(ready.state == .current, "gog auth status with credentials maps to current")
-        try Self.expect(ready.summary == "Google account user@example.com is ready", "gog auth status shows the configured account")
+        try Self.expect(ready.state == .needsAuth, "gog raw credentials still require verified token auth")
+        try Self.expect(ready.summary == "Google account needs auth", "gog raw credentials keep setup summary")
 
         let doctorResult = CrawlCommandResult(
             appID: BuiltInCrawlApps.gogcliID,
