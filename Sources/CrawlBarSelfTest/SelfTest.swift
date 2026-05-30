@@ -994,6 +994,23 @@ enum CrawlBarSelfTest {
         try Self.expect(
             flaggedResult.stdout == "5\n<messages>\n<search>\n<hello world>\n<--limit>\n<5>\n",
             "wacli search preserves flags after joined query")
+
+        let builtInDefault = CrawlAppInstallation(manifest: BuiltInCrawlApps.wacli, binaryPath: scriptURL.path)
+        let defaultAccountResult = try CrawlCommandRunner()
+            .run(installation: builtInDefault, action: "search", extraArguments: ["hello", "world"], timeoutSeconds: 5)
+        try Self.expect(
+            defaultAccountResult.stdout == "5\n<--read-only>\n<--json>\n<messages>\n<search>\n<hello world>\n",
+            "built-in wacli omits account flag until configured")
+
+        let builtInNamed = CrawlAppInstallation(
+            manifest: BuiltInCrawlApps.wacli,
+            binaryPath: scriptURL.path,
+            configValues: ["account": "personal"])
+        let namedAccountResult = try CrawlCommandRunner()
+            .run(installation: builtInNamed, action: "search", extraArguments: ["hello", "world"], timeoutSeconds: 5)
+        try Self.expect(
+            namedAccountResult.stdout == "7\n<--account>\n<personal>\n<--read-only>\n<--json>\n<messages>\n<search>\n<hello world>\n",
+            "built-in wacli applies configured account")
     }
 
     private static func testGitcrawlCommandArgumentsInferRepository() throws {
@@ -1294,7 +1311,7 @@ enum CrawlBarSelfTest {
         try Self.expect(status.state == .current, "wacli doctor honors explicit current state over stale timestamps")
         try Self.expect(status.freshness?.status == .stale, "wacli doctor still exposes stale freshness metadata")
         try Self.expect(status.summary == "6991 messages, 677 chats", "wacli doctor maps store counts")
-        try Self.expect(status.databasePath == "/tmp/wacli-store", "wacli doctor maps store path")
+        try Self.expect(status.databasePath == "/tmp/wacli-store/wacli.db", "wacli doctor maps database path")
         try Self.expect(status.lastSyncAt != nil, "wacli doctor maps last sync")
         try Self.expect(status.warnings.contains("Store is locked by locked_by_other_process"), "wacli lock is a warning")
         try Self.expect(status.warnings.contains("Full-text search is not enabled"), "wacli FTS state is a warning")

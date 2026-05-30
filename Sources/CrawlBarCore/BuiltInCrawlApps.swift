@@ -294,7 +294,7 @@ public enum BuiltInCrawlApps {
             .init(id: "execution_mode", label: "Run location", kind: .choice, help: "Run wacli on this Mac or over SSH on another machine.", defaultValue: "local", choices: ["local", "remote"]),
             .init(id: "remote_target", label: "SSH target", help: "SSH target that can run wacli, for example user@example-host.", placeholder: "user@example-host"),
             .init(id: "remote_run_as", label: "Run as user", help: "Optional remote Unix user for sudo -u, when wacli is installed under a service account.", placeholder: "crawl"),
-            .init(id: "account", label: "wacli account", help: "Named account from the wacli config.", placeholder: "personal", defaultValue: "personal"),
+            .init(id: "account", label: "wacli account", help: "Optional named account from the wacli config.", placeholder: "personal"),
         ],
         configSections: [
             .init(id: "execution", title: "Execution", optionIDs: ["execution_mode"]),

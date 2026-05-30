@@ -300,9 +300,24 @@ public struct CrawlCommandRunner: @unchecked Sendable {
     }
 
     private static func interpolatedArguments(_ arguments: [String], installation: CrawlAppInstallation) throws -> [String] {
-        try arguments.map { argument in
-            try Self.interpolatedArgument(argument, installation: installation)
+        var result: [String] = []
+        for argument in arguments {
+            if let optionID = Self.exactConfigTokenID(argument),
+               Self.configValue(optionID, installation: installation) == nil,
+               result.last == "--account"
+            {
+                result.removeLast()
+                continue
+            }
+            result.append(try Self.interpolatedArgument(argument, installation: installation))
         }
+        return result
+    }
+
+    private static func exactConfigTokenID(_ argument: String) -> String? {
+        guard argument.hasPrefix("{config:"), argument.hasSuffix("}") else { return nil }
+        let optionID = String(argument.dropFirst("{config:".count).dropLast())
+        return optionID.isEmpty ? nil : optionID
     }
 
     private static func interpolatedArgument(_ argument: String, installation: CrawlAppInstallation) throws -> String {

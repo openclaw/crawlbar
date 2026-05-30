@@ -70,6 +70,8 @@ public struct CrawlStatusService: @unchecked Sendable {
                 appID: installation.id,
                 state: .unknown,
                 summary: "Status check is slow; run Doctor for a full check")
+        } catch CrawlCommandRunnerError.missingRequiredConfig {
+            return CrawlAppStatus(appID: installation.id, state: .needsConfig, summary: "Remote settings are incomplete")
         } catch {
             return CrawlAppStatus(appID: installation.id, state: .error, summary: error.localizedDescription, errors: [error.localizedDescription])
         }

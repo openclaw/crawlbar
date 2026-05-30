@@ -505,11 +505,7 @@ public struct CrawlStatusMapper: Sendable {
     }
 
     private static func wacliDatabasePath(storeDir: String) -> String {
-        let storeURL = URL(fileURLWithPath: storeDir)
-        if storeURL.deletingLastPathComponent().lastPathComponent == "accounts" {
-            return storeURL.appendingPathComponent("wacli.db").path
-        }
-        return storeDir
+        URL(fileURLWithPath: storeDir).appendingPathComponent("wacli.db").path
     }
 
     private static func wacliDatabaseResources(storeDir: String, counts: [CrawlCount]) -> [CrawlDatabaseResource] {
