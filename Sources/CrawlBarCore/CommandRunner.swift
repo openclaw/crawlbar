@@ -42,6 +42,7 @@ public struct CrawlCommandRedactor: Sendable {
             (#"(?i)\b(secret_)[A-Za-z0-9_]+\b"#, "$1[REDACTED]"),
             (#"(?i)(xox[aboprsxc]-)[A-Za-z0-9-]+"#, "$1[REDACTED]"),
             (#"(?i)\bmfa\.[A-Za-z0-9_-]+\b"#, "[REDACTED]"),
+            (#"(?i)\b(ct0)(["' \t:=]+)([^ \t\r\n"',}]+)"#, "$1$2[REDACTED]"),
             (#"\b[A-Za-z0-9_-]{24}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{20,}\b"#, "[REDACTED]"),
             (#"(?i)(discord[_-]?token["' \t:=]+)([^ \t\r\n"',}]+)"#, "$1[REDACTED]"),
         ]
@@ -145,12 +146,12 @@ public struct CrawlCommandRunner: @unchecked Sendable {
         else {
             throw CrawlCommandRunnerError.commandUnavailable(appID: installation.id, action: action)
         }
+        arguments = try Self.interpolatedArguments(arguments, installation: installation)
         arguments = Self.commandArguments(
             for: installation,
             action: action,
             commandArguments: arguments,
             extraArguments: extraArguments)
-        arguments = try Self.interpolatedArguments(arguments, installation: installation)
 
         let executionKind = installation.manifest.executionKind(configValues: installation.configValues)
         let effectiveBinaryName = Self.effectiveBinaryName(for: installation)

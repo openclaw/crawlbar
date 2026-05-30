@@ -1029,6 +1029,16 @@ enum CrawlBarSelfTest {
         try Self.expect(
             namedAccountResult.stdout == "7\n<--account>\n<personal>\n<--read-only>\n<--json>\n<messages>\n<search>\n<hello world>\n",
             "built-in wacli applies configured account")
+
+        let literalConfigQuery = try CrawlCommandRunner()
+            .run(
+                installation: builtInNamed,
+                action: "search",
+                extraArguments: ["{config:account}"],
+                timeoutSeconds: 5)
+        try Self.expect(
+            literalConfigQuery.stdout == "7\n<--account>\n<personal>\n<--read-only>\n<--json>\n<messages>\n<search>\n<{config:account}>\n",
+            "user query text is not config-interpolated")
     }
 
     private static func testGitcrawlCommandArgumentsInferRepository() throws {
@@ -1606,6 +1616,7 @@ enum CrawlBarSelfTest {
         xoxc-1234567890abcdef
         secret_notion123
         mfa.discordsecret
+        ct0: csrf-secret
         label=Discord archive
         """)
         try Self.expect(!redacted.contains("abc123"), "token value redacts")
@@ -1613,6 +1624,7 @@ enum CrawlBarSelfTest {
         try Self.expect(!redacted.contains("discord-secret"), "discord token value redacts")
         try Self.expect(!redacted.contains("1234567890abcdef"), "bare tokens redact")
         try Self.expect(!redacted.contains("notion123"), "notion secrets redact")
+        try Self.expect(!redacted.contains("csrf-secret"), "ct0 cookies redact")
         try Self.expect(redacted.contains("Discord archive"), "discord labels are not redacted")
     }
 
