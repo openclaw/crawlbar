@@ -486,15 +486,7 @@ public struct CrawlStatusMapper: Sendable {
             databasePath: storeDir.map(Self.wacliDatabasePath(storeDir:)),
             lastSyncAt: lastSyncAt,
             counts: counts,
-            databases: storeDir.map {
-                [CrawlDatabaseResource(
-                    id: $0,
-                    label: "WhatsApp store",
-                    kind: .logical,
-                    path: $0,
-                    isPrimary: true,
-                    counts: counts)]
-            } ?? [],
+            databases: storeDir.map { Self.wacliDatabaseResources(storeDir: $0, counts: counts) } ?? [],
             freshness: freshness,
             warnings: self.wacliWarnings(in: data),
             errors: self.wacliErrors(in: object))
@@ -518,6 +510,28 @@ public struct CrawlStatusMapper: Sendable {
             return storeURL.appendingPathComponent("wacli.db").path
         }
         return storeDir
+    }
+
+    private static func wacliDatabaseResources(storeDir: String, counts: [CrawlCount]) -> [CrawlDatabaseResource] {
+        let databasePath = Self.wacliDatabasePath(storeDir: storeDir)
+        var resources = [
+            CrawlDatabaseResource(
+                id: databasePath,
+                label: "WhatsApp SQLite database",
+                kind: .sqlite,
+                path: databasePath,
+                isPrimary: true,
+                counts: counts),
+        ]
+        if databasePath != storeDir {
+            resources.append(CrawlDatabaseResource(
+                id: storeDir,
+                label: "WhatsApp store",
+                kind: .logical,
+                path: storeDir,
+                counts: counts))
+        }
+        return resources
     }
 
     private static func isWacliFirstRunStoreError(_ error: String) -> Bool {

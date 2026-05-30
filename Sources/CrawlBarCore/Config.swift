@@ -122,7 +122,7 @@ public struct CrawlBarAppConfig: Codable, Equatable, Sendable, Identifiable {
 }
 
 public struct CrawlBarConfig: Codable, Equatable, Sendable {
-    public static let currentVersion = 2
+    public static let currentVersion = 3
 
     public var version: Int
     public var refreshFrequency: RefreshFrequency
@@ -152,7 +152,9 @@ public struct CrawlBarConfig: Codable, Equatable, Sendable {
                 app.autoRefreshEnabled = false
                 app.shareEnabled = false
                 app.shareAfterRefresh = false
-            } else if self.version < 2, Self.newlyAvailableAppIDs.contains(app.id), !app.enabled, !app.showInMenuBar {
+            } else if Self.shouldEnableNewlyAvailableApp(id: app.id, fromVersion: self.version),
+                      !app.enabled, !app.showInMenuBar
+            {
                 app.enabled = true
                 app.showInMenuBar = true
             }
@@ -169,10 +171,19 @@ public struct CrawlBarConfig: Codable, Equatable, Sendable {
             apps: normalizedApps)
     }
 
-    private static let newlyAvailableAppIDs: Set<CrawlAppID> = [
+    private static let newlyAvailableV2AppIDs: Set<CrawlAppID> = [
         BuiltInCrawlApps.gogcliID,
         BuiltInCrawlApps.wacliID,
     ]
+
+    private static let newlyAvailableV3AppIDs: Set<CrawlAppID> = [
+        BuiltInCrawlApps.birdclawID,
+    ]
+
+    private static func shouldEnableNewlyAvailableApp(id: CrawlAppID, fromVersion version: Int) -> Bool {
+        (version < 2 && Self.newlyAvailableV2AppIDs.contains(id))
+            || (version < 3 && Self.newlyAvailableV3AppIDs.contains(id))
+    }
 
     public func appConfig(for id: CrawlAppID) -> CrawlBarAppConfig? {
         self.apps.first { $0.id == id }

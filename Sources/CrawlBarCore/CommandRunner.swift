@@ -180,10 +180,13 @@ public struct CrawlCommandRunner: @unchecked Sendable {
         }
 
         if executionKind == .ssh {
+            let remoteBinaryOverride = effectiveBinaryName == installation.manifest.binary.name
+                ? nil
+                : effectiveBinaryName
             arguments = try Self.sshArguments(
                 for: installation,
                 remoteArguments: arguments,
-                remoteBinaryOverride: effectiveBinaryName)
+                remoteBinaryOverride: remoteBinaryOverride)
         }
 
         return try self.runProcess(
@@ -328,7 +331,7 @@ public struct CrawlCommandRunner: @unchecked Sendable {
         guard let target = Self.configValue(targetOptionID, installation: installation) else {
             throw CrawlCommandRunnerError.missingRequiredConfig(appID: installation.id, optionID: targetOptionID)
         }
-        guard !target.contains(where: { $0.isWhitespace }) else {
+        guard !target.hasPrefix("-"), !target.contains(where: { $0.isWhitespace }) else {
             throw CrawlCommandRunnerError.invalidRemoteTarget(appID: installation.id, target: target)
         }
 
@@ -342,16 +345,16 @@ public struct CrawlCommandRunner: @unchecked Sendable {
         if let runAsOptionID = execution.runAsConfigID?.nilIfBlank,
            let runAs = Self.configValue(runAsOptionID, installation: installation)
         {
-            guard !runAs.contains(where: { $0.isWhitespace }) else {
+            guard !runAs.hasPrefix("-"), !runAs.contains(where: { $0.isWhitespace }) else {
                 throw CrawlCommandRunnerError.invalidRemoteTarget(appID: installation.id, target: runAs)
             }
             commandParts = ["sudo", "-u", runAs, "-H", "--", "sh", "-lc", userCommand]
-            return [target, commandParts.map(Self.shellQuoted).joined(separator: " ")]
+            return ["--", target, commandParts.map(Self.shellQuoted).joined(separator: " ")]
         }
         if envFile?.nilIfBlank != nil {
-            return [target, ["sh", "-lc", userCommand].map(Self.shellQuoted).joined(separator: " ")]
+            return ["--", target, ["sh", "-lc", userCommand].map(Self.shellQuoted).joined(separator: " ")]
         }
-        return [target, commandParts.map(Self.shellQuoted).joined(separator: " ")]
+        return ["--", target, commandParts.map(Self.shellQuoted).joined(separator: " ")]
     }
 
     private static func remoteShellCommand(commandParts: [String], envFile: String?) -> String {

@@ -20,6 +20,7 @@ enum CrawlBarSelfTest {
         try Self.testActionLogStoreReadsRecentResults()
         try Self.testQueryActionResolverSkipsSQLForPlainText()
         try Self.testExecutableResolverUsesMacCliFallbackPaths()
+        try Self.testRegistryResolvesBirdclawAccessPathBinary()
         try Self.testConfigValuesReachCommandEnvironment()
         try Self.testRemoteSshExecutionBuildsCommand()
         try Self.testWacliSearchJoinsQueryArguments()
@@ -46,6 +47,10 @@ enum CrawlBarSelfTest {
             version: 1,
             apps: [CrawlBarAppConfig(id: BuiltInCrawlApps.wacliID, enabled: false, showInMenuBar: false)]).normalized()
         try Self.expect(oldConfig.appConfig(for: BuiltInCrawlApps.wacliID)?.enabled == true, "newly available apps migrate from forced disabled")
+        let v2Config = CrawlBarConfig(
+            version: 2,
+            apps: [CrawlBarAppConfig(id: BuiltInCrawlApps.birdclawID, enabled: false, showInMenuBar: false)]).normalized()
+        try Self.expect(v2Config.appConfig(for: BuiltInCrawlApps.birdclawID)?.enabled == true, "newly available Birdclaw migrates from forced disabled")
         try Self.expect(config.manifestDirectories == ["~/.crawlbar/apps"], "manifest directory default is present")
     }
 
@@ -173,7 +178,7 @@ enum CrawlBarSelfTest {
         try Self.expect(BuiltInCrawlApps.gogcli.binary.name == "gog", "Google manifest uses the installed gog binary")
         try Self.expect(BuiltInCrawlApps.gogcli.commands["status"] == ["auth", "list", "--check", "--json", "--no-input"], "Google status is wired")
         try Self.expect(BuiltInCrawlApps.wacli.availability == .available, "WhatsApp manifest is available")
-        try Self.expect(BuiltInCrawlApps.wacli.commands["status"] == ["--read-only", "--json", "doctor"], "WhatsApp status is wired")
+        try Self.expect(BuiltInCrawlApps.wacli.commands["status"] == ["--account", "{config:account}", "--read-only", "--json", "doctor"], "WhatsApp status is wired")
         try Self.expect(BuiltInCrawlApps.birdclaw.binary.name == "bird", "X app id uses bird executable")
         try Self.expect(BuiltInCrawlApps.telecrawl.availability == .available, "telecrawl is available")
         try Self.expect(BuiltInCrawlApps.telecrawl.commands["status"] == ["--json", "status"], "telecrawl uses JSON status command")
@@ -406,6 +411,8 @@ enum CrawlBarSelfTest {
         try Self.expect(wacliStatus.counts.contains(CrawlCount(id: "messages", label: "Messages", value: 12)), "wacli message counts map")
         try Self.expect(wacliStatus.configPath == "/tmp/wacli/config.yaml", "wacli account config path maps")
         try Self.expect(wacliStatus.databasePath == "/tmp/wacli/accounts/me/wacli.db", "wacli database path maps")
+        try Self.expect(wacliStatus.databases.contains { $0.kind == .sqlite && $0.path == "/tmp/wacli/accounts/me/wacli.db" }, "wacli database inventory keeps sqlite resource")
+        try Self.expect(wacliStatus.databases.contains { $0.kind == .logical && $0.path == "/tmp/wacli/accounts/me" }, "wacli database inventory keeps logical store")
 
         let wacliStoreErrorResult = CrawlCommandResult(
             appID: BuiltInCrawlApps.wacliID,
@@ -747,6 +754,33 @@ enum CrawlBarSelfTest {
             "normalized environment supplies HOME for launchd crawler commands")
     }
 
+    private static func testRegistryResolvesBirdclawAccessPathBinary() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("crawlbar-birdclaw-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let binaryURL = directory.appendingPathComponent("birdclaw")
+        try Data("#!/bin/sh\n".utf8).write(to: binaryURL)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binaryURL.path)
+
+        let configURL = directory.appendingPathComponent("config.json")
+        let store = CrawlBarConfigStore(fileURL: configURL)
+        try store.save(CrawlBarConfig(apps: [
+            CrawlBarAppConfig(
+                id: BuiltInCrawlApps.birdclawID,
+                configValues: ["access_path": "birdclaw"]),
+        ]))
+        let registry = CrawlAppRegistry(
+            configStore: store,
+            resolver: CrawlExecutableResolver(environment: [
+                "HOME": directory.path,
+                "PATH": directory.path,
+            ]))
+        let installation = try registry.installation(for: BuiltInCrawlApps.birdclawID)
+        try Self.expect(installation?.binaryPath == binaryURL.path, "Birdclaw access path resolves birdclaw binary")
+    }
+
     private static func testRemoteSshExecutionBuildsCommand() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("crawlbar-remote-\(UUID().uuidString)", isDirectory: true)
@@ -801,8 +835,25 @@ enum CrawlBarSelfTest {
             timeoutSeconds: 5)
 
         try Self.expect(
-            result.stdout == #"user@example-host 'sudo' '-u' 'crawl' '-H' '--' 'sh' '-lc' 'cd ~ && exec '\''wacli'\'' '\''--account'\'' '\''personal'\'' '\''--read-only'\'' '\''--json'\'' '\''messages'\'' '\''search'\'' '\''hello world'\'''"#,
+            result.stdout == #"-- user@example-host 'sudo' '-u' 'crawl' '-H' '--' 'sh' '-lc' 'cd ~ && exec '\''wacli'\'' '\''--account'\'' '\''personal'\'' '\''--read-only'\'' '\''--json'\'' '\''messages'\'' '\''search'\'' '\''hello world'\'''"#,
             "remote SSH execution builds a quoted remote command with config defaults")
+
+        let optionTargetInstallation = CrawlAppInstallation(
+            manifest: manifest,
+            binaryPath: scriptURL.path,
+            configValues: [
+                "execution_mode": "remote",
+                "remote_target": "-oProxyCommand=/tmp/hook",
+            ])
+        do {
+            _ = try runner.run(
+                installation: optionTargetInstallation,
+                action: "search",
+                extraArguments: ["hello"],
+                timeoutSeconds: 5)
+            throw SelfTestError.failed("remote SSH target rejects option-looking values")
+        } catch CrawlCommandRunnerError.invalidRemoteTarget {
+        }
 
         let localInstallation = CrawlAppInstallation(
             manifest: manifest,
@@ -831,14 +882,14 @@ enum CrawlBarSelfTest {
             action: "status",
             timeoutSeconds: 5)
         try Self.expect(
-            birdclawResult.stdout == #"user@example-host 'sudo' '-u' 'crawl' '-H' '--' 'sh' '-lc' 'cd ~ && exec '\''birdclaw'\'' '\''auth'\'' '\''status'\'' '\''--json'\'''"#,
+            birdclawResult.stdout == #"-- user@example-host 'sudo' '-u' 'crawl' '-H' '--' 'sh' '-lc' 'cd ~ && exec '\''birdclaw'\'' '\''auth'\'' '\''status'\'' '\''--json'\'''"#,
             "X remote execution can use the Birdclaw/xurl access path")
 
         let envManifest = CrawlAppManifest(
             id: CrawlAppID(rawValue: "envcrawl-test"),
             displayName: "Env Crawl Test",
             description: "A remote crawler that needs an env file",
-            binary: .init(name: "envcrawl"),
+            binary: .init(name: "envcrawl-local"),
             execution: .init(
                 kind: .local,
                 kindConfigID: "execution_mode",
@@ -868,7 +919,7 @@ enum CrawlBarSelfTest {
             action: "status",
             timeoutSeconds: 5)
         try Self.expect(
-            envResult.stdout == #"user@example-host 'sudo' '-u' 'crawl' '-H' '--' 'sh' '-lc' 'cd ~ && set -a && . '\''/run/example/env'\'' && set +a && exec '\''envcrawl'\'' '\''status'\'' '\''--json'\'''"#,
+            envResult.stdout == #"-- user@example-host 'sudo' '-u' 'crawl' '-H' '--' 'sh' '-lc' 'cd ~ && set -a && . '\''/run/example/env'\'' && set +a && exec '\''envcrawl'\'' '\''status'\'' '\''--json'\'''"#,
             "remote SSH execution can source an env file before exec")
     }
 
