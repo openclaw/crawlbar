@@ -13,6 +13,7 @@
 - Add CrawlBar support for Cloudflare remote crawler archives, including built-in `remote status`, `remote archives`, and compressed SQLite `cloud publish` actions for `gitcrawl` and `discrawl`.
 - Surface Cloudflare D1/R2 archive status, remote archive metadata, and gzip chunked SQLite bundle details in normalized status JSON and the settings UI.
 - Bundle real macOS app icons for GitHub Desktop, Slack, Discord, Notion, WhatsApp, and Granola crawler rows.
+- Guard source and packaged brand icon assets in CI so crawler logos cannot regress silently. Thanks @vincentkoc.
 
 ## v0.2.2 - 2026-05-22
 
