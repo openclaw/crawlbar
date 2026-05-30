@@ -158,7 +158,7 @@ public struct CrawlCommandRunner: @unchecked Sendable {
         if executionKind == .ssh {
             executableName = "ssh"
         } else if effectiveBinaryName != installation.manifest.binary.name {
-            executableName = effectiveBinaryName
+            executableName = installation.binaryPath ?? effectiveBinaryName
         } else {
             executableName = installation.binaryPath ?? effectiveBinaryName
         }

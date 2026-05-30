@@ -998,7 +998,11 @@ public extension CrawlAppStatus {
             return (.needsAuth, "GitHub credentials rejected")
         }
         if appID == BuiltInCrawlApps.birdclawID,
-           lowered.contains("no twitter cookies") || lowered.contains("no x cookies")
+           lowered.contains("no twitter cookies")
+               || lowered.contains("no x cookies")
+               || lowered.contains("missing credentials")
+               || lowered.contains("missing auth_token")
+               || lowered.contains("missing ct0")
         {
             return (.needsAuth, "X browser cookies not found")
         }

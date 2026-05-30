@@ -885,6 +885,24 @@ enum CrawlBarSelfTest {
             birdclawResult.stdout == #"-- user@example-host 'sudo' '-u' 'crawl' '-H' '--' 'sh' '-lc' 'cd ~ && exec '\''birdclaw'\'' '\''auth'\'' '\''status'\'' '\''--json'\'''"#,
             "X remote execution can use the Birdclaw/xurl access path")
 
+        let customBirdclawURL = directory.appendingPathComponent("custom-birdclaw")
+        try Data("""
+        #!/bin/sh
+        printf 'custom:%s' "$*"
+        """.utf8).write(to: customBirdclawURL)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: customBirdclawURL.path)
+        let localBirdclawOverride = CrawlAppInstallation(
+            manifest: BuiltInCrawlApps.birdclaw,
+            binaryPath: customBirdclawURL.path,
+            configValues: ["access_path": "birdclaw"])
+        let localBirdclawResult = try runner.run(
+            installation: localBirdclawOverride,
+            action: "status",
+            timeoutSeconds: 5)
+        try Self.expect(
+            localBirdclawResult.stdout == "custom:auth status --json",
+            "Birdclaw access path preserves binary overrides")
+
         let envManifest = CrawlAppManifest(
             id: CrawlAppID(rawValue: "envcrawl-test"),
             displayName: "Env Crawl Test",
@@ -1480,6 +1498,16 @@ enum CrawlBarSelfTest {
             startedAt: Date(timeIntervalSince1970: 1_775_000_006),
             finishedAt: Date(timeIntervalSince1970: 1_775_000_007))
         try Self.expect(failedGitHubResult.userFacingRunMessage == "GitHub credentials rejected", "failed gitcrawl run message is normalized")
+
+        let failedBirdResult = CrawlCommandResult(
+            appID: BuiltInCrawlApps.birdclawID,
+            action: "status",
+            exitCode: 1,
+            stdout: "",
+            stderr: "Missing auth_token",
+            startedAt: Date(timeIntervalSince1970: 1_775_000_006),
+            finishedAt: Date(timeIntervalSince1970: 1_775_000_007))
+        try Self.expect(failedBirdResult.userFacingRunMessage == "X browser cookies not found", "failed X credential check maps to auth setup")
 
         let failedStdoutResult = CrawlCommandResult(
             appID: BuiltInCrawlApps.graincrawlID,
