@@ -1,6 +1,6 @@
 import Foundation
 
-package extension BuiltInCrawlApps {
+public extension BuiltInCrawlApps {
     static let birdclaw = CrawlAppManifest(
         id: Self.birdclawID,
         displayName: "X",

@@ -1,6 +1,6 @@
 import Foundation
 
-package extension BuiltInCrawlApps {
+public extension BuiltInCrawlApps {
     static let gogcli = CrawlAppManifest(
         id: Self.gogcliID,
         displayName: "Google",

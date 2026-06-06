@@ -1,13 +1,13 @@
 import Foundation
 
-package enum CrawlCommandRunnerError: LocalizedError, Sendable {
+public enum CrawlCommandRunnerError: LocalizedError, Sendable {
     case executableNotFound(String)
     case commandUnavailable(appID: CrawlAppID, action: String)
     case missingRequiredConfig(appID: CrawlAppID, optionID: String)
     case invalidRemoteTarget(appID: CrawlAppID, target: String)
     case timedOut(appID: CrawlAppID, action: String, seconds: Int)
 
-    package var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case let .executableNotFound(name):
             "Could not find executable: \(name)"

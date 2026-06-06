@@ -1,6 +1,6 @@
 import Foundation
 
-package enum CrawlAppCapability: String, Codable, Equatable, Sendable, CaseIterable {
+public enum CrawlAppCapability: String, Codable, Equatable, Sendable, CaseIterable {
     case status
     case doctor
     case refresh
@@ -16,8 +16,8 @@ package enum CrawlAppCapability: String, Codable, Equatable, Sendable, CaseItera
     case maintain
 }
 
-package enum CrawlQueryActionResolver {
-    package static func action(for manifest: CrawlAppManifest, queryArguments: [String]) -> String? {
+public enum CrawlQueryActionResolver {
+    public static func action(for manifest: CrawlAppManifest, queryArguments: [String]) -> String? {
         if Self.queryLooksLikeSQL(queryArguments) {
             return ["query", "sql"].first { manifest.commands[$0] != nil }
         }

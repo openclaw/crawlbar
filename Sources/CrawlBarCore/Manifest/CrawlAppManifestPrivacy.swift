@@ -1,12 +1,12 @@
 import Foundation
 
-package extension CrawlAppManifest {
+public extension CrawlAppManifest {
     struct Privacy: Codable, Equatable, Sendable {
-        package var containsPrivateMessages: Bool
-        package var exportsSecrets: Bool
-        package var localOnlyScopes: [String]
+        public var containsPrivateMessages: Bool
+        public var exportsSecrets: Bool
+        public var localOnlyScopes: [String]
 
-        package init(
+        public init(
             containsPrivateMessages: Bool = false,
             exportsSecrets: Bool = false,
             localOnlyScopes: [String] = [])
@@ -22,7 +22,7 @@ package extension CrawlAppManifest {
             case localOnlyScopes = "local_only_scopes"
         }
 
-        package init(from decoder: Decoder) throws {
+        public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             self.containsPrivateMessages = try container.decodeIfPresent(Bool.self, forKey: .containsPrivateMessages) ?? false
             self.exportsSecrets = try container.decodeIfPresent(Bool.self, forKey: .exportsSecrets) ?? false

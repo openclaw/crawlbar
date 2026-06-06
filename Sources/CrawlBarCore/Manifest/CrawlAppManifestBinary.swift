@@ -1,16 +1,16 @@
 import Foundation
 
-package extension CrawlAppManifest {
+public extension CrawlAppManifest {
     enum Availability: String, Codable, Equatable, Sendable {
         case available
         case comingSoon = "coming_soon"
     }
 
     struct Binary: Codable, Equatable, Sendable {
-        package var name: String
-        package var minVersion: String?
+        public var name: String
+        public var minVersion: String?
 
-        package init(name: String, minVersion: String? = nil) {
+        public init(name: String, minVersion: String? = nil) {
             self.name = name
             self.minVersion = minVersion
         }

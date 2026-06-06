@@ -1,6 +1,6 @@
 import Foundation
 
-package extension BuiltInCrawlApps {
+public extension BuiltInCrawlApps {
     static let slacrawl = CrawlAppManifest(
         id: Self.slacrawlID,
         displayName: "Slack",

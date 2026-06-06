@@ -1,6 +1,6 @@
 import Foundation
 
-package extension BuiltInCrawlApps {
+public extension BuiltInCrawlApps {
     static let discrawl = CrawlAppManifest(
         id: Self.discrawlID,
         displayName: "Discord",

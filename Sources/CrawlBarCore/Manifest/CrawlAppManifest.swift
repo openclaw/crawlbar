@@ -1,25 +1,25 @@
 import Foundation
 
-package struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
-    package var schemaVersion: Int
-    package var id: CrawlAppID
-    package var displayName: String
-    package var description: String
-    package var availability: CrawlAppManifest.Availability
-    package var binary: CrawlAppManifest.Binary
-    package var execution: CrawlAppManifest.Execution?
-    package var branding: CrawlAppManifest.Branding
-    package var paths: CrawlAppManifest.Paths
-    package var commands: [String: [String]]
-    package var capabilities: [CrawlAppCapability]
-    package var statusRequiresSecrets: Bool?
-    package var privacy: CrawlAppManifest.Privacy
-    package var configOptions: [CrawlAppManifest.ConfigOption]
-    package var configSections: [CrawlAppManifest.ConfigSection]
-    package var install: CrawlAppManifest.Install?
-    package var suggestion: CrawlAppManifest.Suggestion?
+public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
+    public var schemaVersion: Int
+    public var id: CrawlAppID
+    public var displayName: String
+    public var description: String
+    public var availability: CrawlAppManifest.Availability
+    public var binary: CrawlAppManifest.Binary
+    public var execution: CrawlAppManifest.Execution?
+    public var branding: CrawlAppManifest.Branding
+    public var paths: CrawlAppManifest.Paths
+    public var commands: [String: [String]]
+    public var capabilities: [CrawlAppCapability]
+    public var statusRequiresSecrets: Bool?
+    public var privacy: CrawlAppManifest.Privacy
+    public var configOptions: [CrawlAppManifest.ConfigOption]
+    public var configSections: [CrawlAppManifest.ConfigSection]
+    public var install: CrawlAppManifest.Install?
+    public var suggestion: CrawlAppManifest.Suggestion?
 
-    package init(
+    public init(
         schemaVersion: Int = 1,
         id: CrawlAppID,
         displayName: String,
@@ -77,7 +77,7 @@ package struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         case suggestion
     }
 
-    package init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.schemaVersion = Self.decodeSchemaVersion(from: container)
         self.id = try container.decode(CrawlAppID.self, forKey: .id)
@@ -98,7 +98,7 @@ package struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         self.suggestion = try container.decodeIfPresent(CrawlAppManifest.Suggestion.self, forKey: .suggestion)
     }
 
-    package var needsSecretsForStatus: Bool {
+    public var needsSecretsForStatus: Bool {
         if let statusRequiresSecrets {
             return statusRequiresSecrets
         }
@@ -107,7 +107,7 @@ package struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         }
     }
 
-    package func executionKind(configValues: [String: String]) -> CrawlAppManifest.ExecutionKind {
+    public func executionKind(configValues: [String: String]) -> CrawlAppManifest.ExecutionKind {
         guard let execution else { return .local }
         guard let modeOptionID = execution.kindConfigID?.nilIfBlank else {
             return execution.kind

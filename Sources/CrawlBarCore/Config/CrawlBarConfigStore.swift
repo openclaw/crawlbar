@@ -1,12 +1,12 @@
 import Foundation
 
-package struct CrawlBarConfigStore: @unchecked Sendable {
-    package var fileURL: URL
+public struct CrawlBarConfigStore: @unchecked Sendable {
+    public var fileURL: URL
     private let fileManager: FileManager
     private let secretStore: CrawlSecretStore
     private let cache: CrawlBarConfigCache
 
-    package init(
+    public init(
         fileURL: URL = Self.defaultURL(),
         fileManager: FileManager = .default)
     {
@@ -25,7 +25,7 @@ package struct CrawlBarConfigStore: @unchecked Sendable {
         self.cache = cache
     }
 
-    package func load(includeSecrets: Bool = false) throws -> CrawlBarConfig? {
+    public func load(includeSecrets: Bool = false) throws -> CrawlBarConfig? {
         guard self.fileManager.fileExists(atPath: self.fileURL.path) else { return nil }
         let modificationDate = self.modificationDate(for: self.fileURL)
         if !includeSecrets,
@@ -45,7 +45,7 @@ package struct CrawlBarConfigStore: @unchecked Sendable {
         }
     }
 
-    package func loadOrCreateDefault(includeSecrets: Bool = false) throws -> CrawlBarConfig {
+    public func loadOrCreateDefault(includeSecrets: Bool = false) throws -> CrawlBarConfig {
         if let existing = try self.load(includeSecrets: includeSecrets) {
             return existing
         }
@@ -54,7 +54,7 @@ package struct CrawlBarConfigStore: @unchecked Sendable {
         return config
     }
 
-    package func save(_ config: CrawlBarConfig, clearMissingSecretIDsByAppID: [CrawlAppID: Set<String>] = [:]) throws {
+    public func save(_ config: CrawlBarConfig, clearMissingSecretIDsByAppID: [CrawlAppID: Set<String>] = [:]) throws {
         let normalized = config.normalized()
         let persisted = try self.configForDisk(normalized, clearMissingSecretIDsByAppID: clearMissingSecretIDsByAppID)
         let data: Data
@@ -76,7 +76,7 @@ package struct CrawlBarConfigStore: @unchecked Sendable {
         self.cache.set(persisted, path: self.fileURL.path, modificationDate: self.modificationDate(for: self.fileURL))
     }
 
-    package func appConfigWithSecrets(_ appConfig: CrawlBarAppConfig, manifest: CrawlAppManifest) -> CrawlBarAppConfig {
+    public func appConfigWithSecrets(_ appConfig: CrawlBarAppConfig, manifest: CrawlAppManifest) -> CrawlBarAppConfig {
         var copy = appConfig
         for option in manifest.configOptions where option.kind == .secret {
             guard copy.configValues[option.id]?.nilIfBlank == nil else { continue }
@@ -92,7 +92,7 @@ package struct CrawlBarConfigStore: @unchecked Sendable {
         return copy
     }
 
-    package static func defaultURL(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
+    public static func defaultURL(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
         home
             .appendingPathComponent(".crawlbar", isDirectory: true)
             .appendingPathComponent("config.json")

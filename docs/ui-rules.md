@@ -1,11 +1,3 @@
----
-written_by: ai
-signal: ai-synthesis
-source: Josh alignment in CrawlBar Codex thread and CrawlBar source inspection
-editing: ai-generated
-truth_status: proposed_for_josh_acceptance
----
-
 # CrawlBar UI Rules
 
 These rules keep CrawlBar's SwiftUI code native-first, small, and composable.

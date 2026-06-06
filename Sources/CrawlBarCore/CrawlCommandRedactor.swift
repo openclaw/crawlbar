@@ -1,9 +1,9 @@
 import Foundation
 
-package struct CrawlCommandRedactor: Sendable {
-    package init() {}
+public struct CrawlCommandRedactor: Sendable {
+    public init() {}
 
-    package func redact(_ text: String) -> String {
+    public func redact(_ text: String) -> String {
         var redacted = text
         let patterns: [(String, String)] = [
             (#"(?i)(Bearer[ \t]+)[^ \t\r\n"',}]+"#, "$1[REDACTED]"),

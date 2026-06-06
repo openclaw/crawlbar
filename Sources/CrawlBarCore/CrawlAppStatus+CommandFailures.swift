@@ -1,6 +1,6 @@
 import Foundation
 
-package extension CrawlAppStatus {
+public extension CrawlAppStatus {
     var isRecoverableGraincrawlSourceFailure: Bool {
         guard self.appID == BuiltInCrawlApps.graincrawlID, self.state == .error else { return false }
         guard !Self.summaryLooksLikeActionFailure(self.summary) else { return false }

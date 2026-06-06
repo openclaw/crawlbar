@@ -1,6 +1,6 @@
 import Foundation
 
-package enum CrawlDatabaseKind: String, Codable, Equatable, Sendable {
+public enum CrawlDatabaseKind: String, Codable, Equatable, Sendable {
     case sqlite
     case cache
     case logical
@@ -10,20 +10,20 @@ package enum CrawlDatabaseKind: String, Codable, Equatable, Sendable {
     case sqliteBundle = "sqlite_bundle"
 }
 
-package struct CrawlDatabaseResource: Codable, Equatable, Sendable, Identifiable {
-    package var id: String
-    package var label: String
-    package var kind: CrawlDatabaseKind
-    package var role: String?
-    package var path: String?
-    package var endpoint: String?
-    package var archive: String?
-    package var isPrimary: Bool
-    package var bytes: Int?
-    package var modifiedAt: Date?
-    package var counts: [CrawlCount]
+public struct CrawlDatabaseResource: Codable, Equatable, Sendable, Identifiable {
+    public var id: String
+    public var label: String
+    public var kind: CrawlDatabaseKind
+    public var role: String?
+    public var path: String?
+    public var endpoint: String?
+    public var archive: String?
+    public var isPrimary: Bool
+    public var bytes: Int?
+    public var modifiedAt: Date?
+    public var counts: [CrawlCount]
 
-    package init(
+    public init(
         id: String,
         label: String,
         kind: CrawlDatabaseKind,

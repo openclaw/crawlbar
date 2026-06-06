@@ -1,6 +1,6 @@
 import Foundation
 
-package extension BuiltInCrawlApps {
+public extension BuiltInCrawlApps {
     static let wacli = CrawlAppManifest(
         id: Self.wacliID,
         displayName: "WhatsApp",

@@ -1,20 +1,20 @@
 import Foundation
 
-package extension CrawlAppManifest {
+public extension CrawlAppManifest {
     enum ExecutionKind: String, Codable, Equatable, Sendable {
         case local
         case ssh
     }
 
     struct Execution: Codable, Equatable, Sendable {
-        package var kind: ExecutionKind
-        package var kindConfigID: String?
-        package var targetConfigID: String?
-        package var runAsConfigID: String?
-        package var remoteEnvFileConfigID: String?
-        package var remoteBinary: String?
+        public var kind: ExecutionKind
+        public var kindConfigID: String?
+        public var targetConfigID: String?
+        public var runAsConfigID: String?
+        public var remoteEnvFileConfigID: String?
+        public var remoteBinary: String?
 
-        package init(
+        public init(
             kind: ExecutionKind = .local,
             kindConfigID: String? = nil,
             targetConfigID: String? = nil,

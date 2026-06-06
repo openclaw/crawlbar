@@ -1,11 +1,3 @@
----
-written_by: ai
-signal: ai-synthesis
-source: CrawlBar source layout after UI/Core/SelfTest decomposition
-editing: ai-edited
-truth_status: verified-state
----
-
 # Contributing
 
 Keep changes small and prove the touched surface.

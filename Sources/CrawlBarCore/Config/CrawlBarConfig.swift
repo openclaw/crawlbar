@@ -1,14 +1,14 @@
 import Foundation
 
-package struct CrawlBarConfig: Codable, Equatable, Sendable {
-    package static let currentVersion = 3
+public struct CrawlBarConfig: Codable, Equatable, Sendable {
+    public static let currentVersion = 3
 
-    package var version: Int
-    package var refreshFrequency: RefreshFrequency
-    package var manifestDirectories: [String]
-    package var apps: [CrawlBarAppConfig]
+    public var version: Int
+    public var refreshFrequency: RefreshFrequency
+    public var manifestDirectories: [String]
+    public var apps: [CrawlBarAppConfig]
 
-    package init(
+    public init(
         version: Int = Self.currentVersion,
         refreshFrequency: RefreshFrequency = .fifteenMinutes,
         manifestDirectories: [String] = ["~/.crawlbar/apps"],
@@ -20,7 +20,7 @@ package struct CrawlBarConfig: Codable, Equatable, Sendable {
         self.apps = apps
     }
 
-    package func normalized(knownIDs: [CrawlAppID] = BuiltInCrawlApps.all.map(\.id)) -> CrawlBarConfig {
+    public func normalized(knownIDs: [CrawlAppID] = BuiltInCrawlApps.all.map(\.id)) -> CrawlBarConfig {
         var seen: Set<CrawlAppID> = []
         var normalizedApps: [CrawlBarAppConfig] = []
         for var app in self.apps where !seen.contains(app.id) {
@@ -50,7 +50,7 @@ package struct CrawlBarConfig: Codable, Equatable, Sendable {
             apps: normalizedApps)
     }
 
-    package func appConfig(for id: CrawlAppID) -> CrawlBarAppConfig? {
+    public func appConfig(for id: CrawlAppID) -> CrawlBarAppConfig? {
         self.apps.first { $0.id == id }
     }
 
@@ -75,7 +75,7 @@ package struct CrawlBarConfig: Codable, Equatable, Sendable {
         case apps
     }
 
-    package init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.version = try container.decodeIfPresent(Int.self, forKey: .version) ?? Self.currentVersion
         self.refreshFrequency = try container.decodeIfPresent(RefreshFrequency.self, forKey: .refreshFrequency) ?? .fifteenMinutes
@@ -83,7 +83,7 @@ package struct CrawlBarConfig: Codable, Equatable, Sendable {
         self.apps = try container.decodeIfPresent([CrawlBarAppConfig].self, forKey: .apps) ?? []
     }
 
-    package func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(self.version, forKey: .version)
         try container.encode(self.refreshFrequency, forKey: .refreshFrequency)

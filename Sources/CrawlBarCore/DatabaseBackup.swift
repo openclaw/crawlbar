@@ -1,12 +1,12 @@
 import Foundation
 
-package struct CrawlDatabaseBackup: Codable, Equatable, Sendable {
-    package var appID: CrawlAppID
-    package var directory: String
-    package var files: [String]
-    package var createdAt: Date
+public struct CrawlDatabaseBackup: Codable, Equatable, Sendable {
+    public var appID: CrawlAppID
+    public var directory: String
+    public var files: [String]
+    public var createdAt: Date
 
-    package init(appID: CrawlAppID, directory: String, files: [String], createdAt: Date = Date()) {
+    public init(appID: CrawlAppID, directory: String, files: [String], createdAt: Date = Date()) {
         self.appID = appID
         self.directory = directory
         self.files = files
@@ -38,14 +38,14 @@ enum CrawlDatabaseBackupError: LocalizedError, Sendable {
     }
 }
 
-package enum CrawlDatabaseBackupStore {
-    package static func defaultDirectory(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
+public enum CrawlDatabaseBackupStore {
+    public static func defaultDirectory(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
         home
             .appendingPathComponent(".crawlbar", isDirectory: true)
             .appendingPathComponent("backups", isDirectory: true)
     }
 
-    package static func backup(status: CrawlAppStatus, root: URL = Self.defaultDirectory()) throws -> CrawlDatabaseBackup {
+    public static func backup(status: CrawlAppStatus, root: URL = Self.defaultDirectory()) throws -> CrawlDatabaseBackup {
         let resources = status.databases
             .filter { $0.kind == .sqlite || $0.kind == .cache }
             .compactMap { resource -> (resource: CrawlDatabaseResource, source: URL)? in

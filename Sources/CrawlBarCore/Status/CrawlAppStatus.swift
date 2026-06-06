@@ -1,33 +1,33 @@
 import Foundation
 
-package struct CrawlAppStatus: Codable, Equatable, Sendable, Identifiable {
-    package var schemaVersion: Int
-    package var appID: CrawlAppID
-    package var generatedAt: Date
-    package var state: CrawlAppState
-    package var summary: String
-    package var configPath: String?
-    package var databasePath: String?
-    package var databaseBytes: Int?
-    package var walBytes: Int?
-    package var lastSyncAt: Date?
-    package var lastImportAt: Date?
-    package var lastExportAt: Date?
-    package var counts: [CrawlCount]
-    package var databases: [CrawlDatabaseResource]
-    package var freshness: CrawlFreshness?
-    package var share: CrawlShareStatus?
-    package var remote: CrawlRemoteStatus?
-    package var sqliteObject: CrawlSQLiteObjectStatus?
-    package var sqliteBundle: CrawlSQLiteBundleStatus?
-    package var warnings: [String]
-    package var errors: [String]
+public struct CrawlAppStatus: Codable, Equatable, Sendable, Identifiable {
+    public var schemaVersion: Int
+    public var appID: CrawlAppID
+    public var generatedAt: Date
+    public var state: CrawlAppState
+    public var summary: String
+    public var configPath: String?
+    public var databasePath: String?
+    public var databaseBytes: Int?
+    public var walBytes: Int?
+    public var lastSyncAt: Date?
+    public var lastImportAt: Date?
+    public var lastExportAt: Date?
+    public var counts: [CrawlCount]
+    public var databases: [CrawlDatabaseResource]
+    public var freshness: CrawlFreshness?
+    public var share: CrawlShareStatus?
+    public var remote: CrawlRemoteStatus?
+    public var sqliteObject: CrawlSQLiteObjectStatus?
+    public var sqliteBundle: CrawlSQLiteBundleStatus?
+    public var warnings: [String]
+    public var errors: [String]
 
-    package var id: CrawlAppID {
+    public var id: CrawlAppID {
         self.appID
     }
 
-    package init(
+    public init(
         schemaVersion: Int = 1,
         appID: CrawlAppID,
         generatedAt: Date = Date(),

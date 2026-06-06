@@ -1,13 +1,13 @@
 import Foundation
 
-package struct CrawlShareStatus: Codable, Equatable, Sendable {
-    package var enabled: Bool
-    package var repoPath: String?
-    package var remote: String?
-    package var branch: String?
-    package var needsUpdate: Bool?
+public struct CrawlShareStatus: Codable, Equatable, Sendable {
+    public var enabled: Bool
+    public var repoPath: String?
+    public var remote: String?
+    public var branch: String?
+    public var needsUpdate: Bool?
 
-    package init(enabled: Bool, repoPath: String? = nil, remote: String? = nil, branch: String? = nil, needsUpdate: Bool? = nil) {
+    public init(enabled: Bool, repoPath: String? = nil, remote: String? = nil, branch: String? = nil, needsUpdate: Bool? = nil) {
         self.enabled = enabled
         self.repoPath = repoPath
         self.remote = remote
@@ -24,16 +24,16 @@ package struct CrawlShareStatus: Codable, Equatable, Sendable {
     }
 }
 
-package struct CrawlRemoteStatus: Codable, Equatable, Sendable {
-    package var enabled: Bool
-    package var mode: String?
-    package var endpoint: String?
-    package var archive: String?
-    package var lastIngestAt: Date?
-    package var lastSyncAt: Date?
-    package var needsUpdate: Bool?
+public struct CrawlRemoteStatus: Codable, Equatable, Sendable {
+    public var enabled: Bool
+    public var mode: String?
+    public var endpoint: String?
+    public var archive: String?
+    public var lastIngestAt: Date?
+    public var lastSyncAt: Date?
+    public var needsUpdate: Bool?
 
-    package init(
+    public init(
         enabled: Bool,
         mode: String? = nil,
         endpoint: String? = nil,
@@ -62,13 +62,13 @@ package struct CrawlRemoteStatus: Codable, Equatable, Sendable {
     }
 }
 
-package struct CrawlSQLiteObjectStatus: Codable, Equatable, Sendable {
-    package var key: String?
-    package var contentType: String?
-    package var bytes: Int?
-    package var uploadedAt: Date?
+public struct CrawlSQLiteObjectStatus: Codable, Equatable, Sendable {
+    public var key: String?
+    public var contentType: String?
+    public var bytes: Int?
+    public var uploadedAt: Date?
 
-    package init(key: String? = nil, contentType: String? = nil, bytes: Int? = nil, uploadedAt: Date? = nil) {
+    public init(key: String? = nil, contentType: String? = nil, bytes: Int? = nil, uploadedAt: Date? = nil) {
         self.key = key
         self.contentType = contentType
         self.bytes = bytes
@@ -83,18 +83,18 @@ package struct CrawlSQLiteObjectStatus: Codable, Equatable, Sendable {
     }
 }
 
-package struct CrawlSQLiteBundleStatus: Codable, Equatable, Sendable {
-    package var key: String?
-    package var contentType: String?
-    package var format: String?
-    package var compression: String?
-    package var rawBytes: Int?
-    package var compressedBytes: Int?
-    package var partCount: Int?
-    package var uploadedAt: Date?
-    package var generatedAt: Date?
+public struct CrawlSQLiteBundleStatus: Codable, Equatable, Sendable {
+    public var key: String?
+    public var contentType: String?
+    public var format: String?
+    public var compression: String?
+    public var rawBytes: Int?
+    public var compressedBytes: Int?
+    public var partCount: Int?
+    public var uploadedAt: Date?
+    public var generatedAt: Date?
 
-    package init(
+    public init(
         key: String? = nil,
         contentType: String? = nil,
         format: String? = nil,

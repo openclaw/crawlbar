@@ -1,24 +1,24 @@
 import Foundation
 
-package struct CrawlManifestDiagnostic: Codable, Equatable, Sendable, Identifiable {
-    package var path: String
-    package var message: String
+public struct CrawlManifestDiagnostic: Codable, Equatable, Sendable, Identifiable {
+    public var path: String
+    public var message: String
 
-    package var id: String {
+    public var id: String {
         self.path
     }
 
-    package init(path: String, message: String) {
+    public init(path: String, message: String) {
         self.path = path
         self.message = message
     }
 }
 
-package struct CrawlManifestCatalog: @unchecked Sendable {
+public struct CrawlManifestCatalog: @unchecked Sendable {
     private let fileManager: FileManager
     private let scanCache: CrawlManifestScanCache
 
-    package init(fileManager: FileManager = .default) {
+    public init(fileManager: FileManager = .default) {
         self.init(fileManager: fileManager, scanCache: .shared)
     }
 
@@ -27,7 +27,7 @@ package struct CrawlManifestCatalog: @unchecked Sendable {
         self.scanCache = scanCache
     }
 
-    package func manifests(config: CrawlBarConfig) -> [CrawlAppManifest] {
+    public func manifests(config: CrawlBarConfig) -> [CrawlAppManifest] {
         var manifestsByID = BuiltInCrawlApps.allByID
         for manifest in self.externalManifestScan(directories: config.manifestDirectories).manifests {
             manifestsByID[manifest.id] = manifest
@@ -35,11 +35,11 @@ package struct CrawlManifestCatalog: @unchecked Sendable {
         return manifestsByID.values.sorted { $0.id < $1.id }
     }
 
-    package func manifest(for id: CrawlAppID, config: CrawlBarConfig) -> CrawlAppManifest? {
+    public func manifest(for id: CrawlAppID, config: CrawlBarConfig) -> CrawlAppManifest? {
         self.manifests(config: config).first { $0.id == id }
     }
 
-    package func diagnostics(config: CrawlBarConfig) -> [CrawlManifestDiagnostic] {
+    public func diagnostics(config: CrawlBarConfig) -> [CrawlManifestDiagnostic] {
         self.externalManifestScan(directories: config.manifestDirectories).diagnostics
     }
 

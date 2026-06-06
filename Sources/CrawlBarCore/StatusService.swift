@@ -1,10 +1,10 @@
 import Foundation
 
-package struct CrawlStatusService: @unchecked Sendable {
+public struct CrawlStatusService: @unchecked Sendable {
     private let runner: CrawlCommandRunner
     private let mapper: CrawlStatusMapper
 
-    package init(
+    public init(
         runner: CrawlCommandRunner = CrawlCommandRunner(),
         mapper: CrawlStatusMapper = CrawlStatusMapper())
     {
@@ -12,7 +12,7 @@ package struct CrawlStatusService: @unchecked Sendable {
         self.mapper = mapper
     }
 
-    package func status(for installation: CrawlAppInstallation, timeoutSeconds: TimeInterval = 30) -> CrawlAppStatus {
+    public func status(for installation: CrawlAppInstallation, timeoutSeconds: TimeInterval = 30) -> CrawlAppStatus {
         if let status = self.immediateStatus(for: installation) {
             return status
         }
@@ -37,7 +37,7 @@ package struct CrawlStatusService: @unchecked Sendable {
         }
     }
 
-    package func immediateStatus(for installation: CrawlAppInstallation) -> CrawlAppStatus? {
+    public func immediateStatus(for installation: CrawlAppInstallation) -> CrawlAppStatus? {
         guard installation.manifest.availability == .available else {
             return CrawlAppStatus(appID: installation.id, state: .disabled, summary: "Coming soon")
         }

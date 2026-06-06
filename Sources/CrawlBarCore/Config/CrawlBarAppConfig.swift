@@ -1,21 +1,21 @@
 import Foundation
 
-package struct CrawlBarAppConfig: Codable, Equatable, Sendable, Identifiable {
-    package var id: CrawlAppID
-    package var enabled: Bool
-    package var binaryPath: String?
-    package var configPath: String?
-    package var refreshFrequency: RefreshFrequency?
-    package var preferredRefreshAction: String?
-    package var autoRefreshEnabled: Bool
-    package var shareEnabled: Bool
-    package var shareAfterRefresh: Bool
-    package var preferredShareAction: String?
-    package var preferredUpdateAction: String?
-    package var showInMenuBar: Bool
-    package var configValues: [String: String]
+public struct CrawlBarAppConfig: Codable, Equatable, Sendable, Identifiable {
+    public var id: CrawlAppID
+    public var enabled: Bool
+    public var binaryPath: String?
+    public var configPath: String?
+    public var refreshFrequency: RefreshFrequency?
+    public var preferredRefreshAction: String?
+    public var autoRefreshEnabled: Bool
+    public var shareEnabled: Bool
+    public var shareAfterRefresh: Bool
+    public var preferredShareAction: String?
+    public var preferredUpdateAction: String?
+    public var showInMenuBar: Bool
+    public var configValues: [String: String]
 
-    package init(
+    public init(
         id: CrawlAppID,
         enabled: Bool = true,
         binaryPath: String? = nil,
@@ -61,7 +61,7 @@ package struct CrawlBarAppConfig: Codable, Equatable, Sendable, Identifiable {
         case configValues = "config_values"
     }
 
-    package init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.id = try container.decode(CrawlAppID.self, forKey: .id)
         self.enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
@@ -78,7 +78,7 @@ package struct CrawlBarAppConfig: Codable, Equatable, Sendable, Identifiable {
         self.configValues = try container.decodeIfPresent([String: String].self, forKey: .configValues) ?? [:]
     }
 
-    package func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(self.id, forKey: .id)
         try container.encode(self.enabled, forKey: .enabled)

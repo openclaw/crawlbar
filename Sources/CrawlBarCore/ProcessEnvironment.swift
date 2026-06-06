@@ -1,18 +1,18 @@
 import Foundation
 
-package enum CrawlProcessEnvironment {
-    package static func normalized(_ environment: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
+public enum CrawlProcessEnvironment {
+    public static func normalized(_ environment: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
         var normalized = environment
         normalized["HOME"] = environment["HOME"]?.nilIfBlank ?? FileManager.default.homeDirectoryForCurrentUser.path
         normalized["PATH"] = self.path(environment: environment)
         return normalized
     }
 
-    package static func path(environment: [String: String] = ProcessInfo.processInfo.environment) -> String {
+    public static func path(environment: [String: String] = ProcessInfo.processInfo.environment) -> String {
         self.pathEntries(environment: environment).joined(separator: ":")
     }
 
-    package static func pathEntries(environment: [String: String] = ProcessInfo.processInfo.environment) -> [String] {
+    public static func pathEntries(environment: [String: String] = ProcessInfo.processInfo.environment) -> [String] {
         var seen: Set<String> = []
         var entries: [String] = []
 

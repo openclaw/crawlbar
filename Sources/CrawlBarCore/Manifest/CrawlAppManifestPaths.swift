@@ -1,15 +1,15 @@
 import Foundation
 
-package extension CrawlAppManifest {
+public extension CrawlAppManifest {
     struct Paths: Codable, Equatable, Sendable {
-        package var defaultConfig: String?
-        package var configEnv: String?
-        package var defaultDatabase: String?
-        package var defaultCache: String?
-        package var defaultLogs: String?
-        package var defaultShare: String?
+        public var defaultConfig: String?
+        public var configEnv: String?
+        public var defaultDatabase: String?
+        public var defaultCache: String?
+        public var defaultLogs: String?
+        public var defaultShare: String?
 
-        package init(
+        public init(
             defaultConfig: String? = nil,
             configEnv: String? = nil,
             defaultDatabase: String? = nil,

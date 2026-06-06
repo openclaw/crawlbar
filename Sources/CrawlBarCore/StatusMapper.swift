@@ -1,11 +1,11 @@
 import Foundation
 
-package struct CrawlStatusMapper: Sendable {
+public struct CrawlStatusMapper: Sendable {
     static let defaultStaleAfterSeconds = 86_400
 
-    package init() {}
+    public init() {}
 
-    package func status(
+    public func status(
         from result: CrawlCommandResult,
         manifest: CrawlAppManifest,
         staleAfterSeconds: Int? = nil)

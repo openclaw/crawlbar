@@ -1,13 +1,13 @@
 import Foundation
 
-package enum RefreshFrequency: String, Codable, CaseIterable, Sendable {
+public enum RefreshFrequency: String, Codable, CaseIterable, Sendable {
     case manual
     case fiveMinutes = "5m"
     case fifteenMinutes = "15m"
     case thirtyMinutes = "30m"
     case hourly = "1h"
 
-    package var seconds: TimeInterval? {
+    public var seconds: TimeInterval? {
         switch self {
         case .manual:
             nil

@@ -1,12 +1,12 @@
 import Foundation
 
-package struct CrawlAppRegistry: @unchecked Sendable {
+public struct CrawlAppRegistry: @unchecked Sendable {
     private let configStore: CrawlBarConfigStore
     private let catalog: CrawlManifestCatalog
     private let resolver: CrawlExecutableResolver
     private let nativeConfigStore: CrawlNativeConfigStore
 
-    package init(
+    public init(
         configStore: CrawlBarConfigStore = CrawlBarConfigStore(),
         catalog: CrawlManifestCatalog = CrawlManifestCatalog(),
         resolver: CrawlExecutableResolver = CrawlExecutableResolver(),
@@ -18,11 +18,11 @@ package struct CrawlAppRegistry: @unchecked Sendable {
         self.nativeConfigStore = nativeConfigStore
     }
 
-    package func loadConfig(includeSecrets: Bool = false) throws -> CrawlBarConfig {
+    public func loadConfig(includeSecrets: Bool = false) throws -> CrawlBarConfig {
         try self.configStore.loadOrCreateDefault(includeSecrets: includeSecrets)
     }
 
-    package func installations(includeDisabled: Bool = true, includeSecrets: Bool = false) throws -> [CrawlAppInstallation] {
+    public func installations(includeDisabled: Bool = true, includeSecrets: Bool = false) throws -> [CrawlAppInstallation] {
         let loadedConfig = try self.loadConfig()
         let manifests = Dictionary(uniqueKeysWithValues: self.catalog
             .manifests(config: loadedConfig)
@@ -61,7 +61,7 @@ package struct CrawlAppRegistry: @unchecked Sendable {
         }
     }
 
-    package func installationsForStatus(includeDisabled: Bool = true) throws -> [CrawlAppInstallation] {
+    public func installationsForStatus(includeDisabled: Bool = true) throws -> [CrawlAppInstallation] {
         try self.installations(includeDisabled: includeDisabled, includeSecrets: false).map { installation in
             guard installation.enabled,
                   installation.binaryPath != nil,
@@ -71,11 +71,11 @@ package struct CrawlAppRegistry: @unchecked Sendable {
         }
     }
 
-    package func installation(for id: CrawlAppID, includeSecrets: Bool = false) throws -> CrawlAppInstallation? {
+    public func installation(for id: CrawlAppID, includeSecrets: Bool = false) throws -> CrawlAppInstallation? {
         try self.installations(includeDisabled: true, includeSecrets: includeSecrets).first { $0.id == id }
     }
 
-    package func installationForStatus(for id: CrawlAppID) throws -> CrawlAppInstallation? {
+    public func installationForStatus(for id: CrawlAppID) throws -> CrawlAppInstallation? {
         guard let installation = try self.installation(for: id, includeSecrets: false) else { return nil }
         guard installation.enabled,
               installation.binaryPath != nil,
@@ -84,11 +84,11 @@ package struct CrawlAppRegistry: @unchecked Sendable {
         return self.installationWithSecrets(installation)
     }
 
-    package func availableInstallations(includeSecrets: Bool = false) throws -> [CrawlAppInstallation] {
+    public func availableInstallations(includeSecrets: Bool = false) throws -> [CrawlAppInstallation] {
         try self.installations(includeDisabled: false, includeSecrets: includeSecrets).filter { $0.binaryPath != nil }
     }
 
-    package func appConfigWithNativeValues(
+    public func appConfigWithNativeValues(
         _ appConfig: CrawlBarAppConfig,
         manifest: CrawlAppManifest,
         includeSecrets: Bool = true)

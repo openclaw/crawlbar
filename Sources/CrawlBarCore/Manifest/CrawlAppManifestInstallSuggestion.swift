@@ -1,15 +1,15 @@
 import Foundation
 
-package extension CrawlAppManifest {
+public extension CrawlAppManifest {
     enum InstallMethod: String, Codable, Equatable, Sendable {
         case homebrew
     }
 
     struct Install: Codable, Equatable, Sendable {
-        package var method: InstallMethod
-        package var package: String
+        public var method: InstallMethod
+        public var package: String
 
-        package init(method: InstallMethod, package: String) {
+        public init(method: InstallMethod, package: String) {
             self.method = method
             self.package = package
         }
@@ -21,11 +21,11 @@ package extension CrawlAppManifest {
     }
 
     struct Suggestion: Codable, Equatable, Sendable {
-        package var kind: SuggestionKind
-        package var name: String
-        package var bundleIDs: [String]
+        public var kind: SuggestionKind
+        public var name: String
+        public var bundleIDs: [String]
 
-        package init(kind: SuggestionKind, name: String, bundleIDs: [String] = []) {
+        public init(kind: SuggestionKind, name: String, bundleIDs: [String] = []) {
             self.kind = kind
             self.name = name
             self.bundleIDs = bundleIDs

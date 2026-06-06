@@ -1,12 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Print review metrics for CrawlBar's current shape.
+#
+# This is intentionally a measurement script, not a pass/fail test. Use it to
+# compare a branch against itself or against main, then apply engineering
+# judgment from docs/quality-rubric.md. A smaller number is only useful when it
+# also removes concepts, API burden, settings clutter, or change amplification.
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 echo "== CrawlBar Quality Baseline =="
 date "+generated_at=%Y-%m-%dT%H:%M:%S%z"
 echo "git_status=$(git status --short | wc -l | tr -d ' ') dirty entries"
+find Sources -name '*.swift' -print0 \
+  | xargs -0 wc -l \
+  | awk '$2 != "total" { files += 1; loc += $1 } END { print "swift_files=" files; print "swift_loc=" loc }'
 echo
 
 echo "== Largest Swift Files =="
@@ -40,12 +50,14 @@ find Sources -name '*.swift' -print0 \
 echo
 
 echo "== CrawlBarCore Interface Surface =="
+swift package describe --type json \
+  | ruby -rjson -e 'data = JSON.parse(STDIN.read); puts "products=" + data.fetch("products").map { |p| p["name"] + ":" + p.fetch("type").keys.join("+") }.join(",")'
 (rg -n '^public ' Sources/CrawlBarCore || true) | wc -l | awk '{ print "public_declarations=" $1 }'
 (rg -n '^package ' Sources/CrawlBarCore || true) | wc -l | awk '{ print "package_declarations=" $1 }'
 echo "-- public --"
 rg -n '^public ' Sources/CrawlBarCore || true
 echo "-- package --"
-rg -n '^package ' Sources/CrawlBarCore | sed -n '1,140p'
+rg -n '^package ' Sources/CrawlBarCore | sed -n '1,140p' || true
 echo
 
 echo "== Forbidden Core UI Imports =="
@@ -71,3 +83,36 @@ rg -n '^(struct|class|enum|protocol) .*(: .*View|View\b|Window|Menu|Sidebar|Pane
   | sort \
   | uniq -c \
   | sort -nr
+echo
+
+echo "== Settings Surface Count =="
+rg -n 'CrawlBarPanel|CrawlBarSwitchRow|CrawlBarControlRow|Button\s*\{|TextField|Picker' Sources/CrawlBar/Settings \
+  | awk '
+    /CrawlBarPanel/ { panels++ }
+    /CrawlBarSwitchRow/ { switches++ }
+    /CrawlBarControlRow/ { rows++ }
+    /Button[[:space:]]*\{/ { buttons++ }
+    /TextField/ { fields++ }
+    /Picker/ { pickers++ }
+    END {
+      print "panels=" panels + 0
+      print "switches=" switches + 0
+      print "control_rows=" rows + 0
+      print "buttons=" buttons + 0
+      print "text_fields=" fields + 0
+      print "pickers=" pickers + 0
+    }'
+echo
+
+echo "== Low-Reference Type Candidates =="
+ruby -e '
+  require "shellwords"
+  Dir["Sources/**/*.swift"].sort.each do |path|
+    File.readlines(path).each do |line|
+      match = line.match(/^\s*(?:public\s+|package\s+|private\s+|final\s+|internal\s+)?(?:struct|class|enum|protocol)\s+([A-Za-z_][A-Za-z0-9_]*)/)
+      next unless match
+      name = match[1]
+      count = `rg -w #{Shellwords.escape(name)} Sources Package.swift Scripts 2>/dev/null | wc -l`.to_i
+      puts "%3d %-45s %s" % [count, name, path] if count <= 3
+    end
+  end'

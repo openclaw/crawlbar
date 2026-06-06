@@ -1,6 +1,6 @@
 import Foundation
 
-package extension BuiltInCrawlApps {
+public extension BuiltInCrawlApps {
     static let notcrawl = CrawlAppManifest(
         id: Self.notcrawlID,
         displayName: "Notion",

@@ -1,6 +1,6 @@
 import Foundation
 
-package enum CrawlAppState: String, Codable, Equatable, Sendable {
+public enum CrawlAppState: String, Codable, Equatable, Sendable {
     case current
     case stale
     case syncing
@@ -11,24 +11,24 @@ package enum CrawlAppState: String, Codable, Equatable, Sendable {
     case unknown
 }
 
-package struct CrawlCount: Codable, Equatable, Sendable, Identifiable {
-    package var id: String
-    package var label: String
-    package var value: Int
+public struct CrawlCount: Codable, Equatable, Sendable, Identifiable {
+    public var id: String
+    public var label: String
+    public var value: Int
 
-    package init(id: String, label: String, value: Int) {
+    public init(id: String, label: String, value: Int) {
         self.id = id
         self.label = label
         self.value = value
     }
 }
 
-package struct CrawlFreshness: Codable, Equatable, Sendable {
-    package var status: CrawlAppState
-    package var ageSeconds: Int?
-    package var staleAfterSeconds: Int?
+public struct CrawlFreshness: Codable, Equatable, Sendable {
+    public var status: CrawlAppState
+    public var ageSeconds: Int?
+    public var staleAfterSeconds: Int?
 
-    package init(status: CrawlAppState, ageSeconds: Int? = nil, staleAfterSeconds: Int? = nil) {
+    public init(status: CrawlAppState, ageSeconds: Int? = nil, staleAfterSeconds: Int? = nil) {
         self.status = status
         self.ageSeconds = ageSeconds
         self.staleAfterSeconds = staleAfterSeconds

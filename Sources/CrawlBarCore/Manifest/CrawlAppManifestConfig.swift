@@ -1,6 +1,6 @@
 import Foundation
 
-package extension CrawlAppManifest {
+public extension CrawlAppManifest {
     enum ConfigOptionKind: String, Codable, Equatable, Sendable {
         case string
         case secret
@@ -10,17 +10,17 @@ package extension CrawlAppManifest {
     }
 
     struct ConfigOption: Codable, Equatable, Sendable, Identifiable {
-        package var id: String
-        package var label: String
-        package var kind: ConfigOptionKind
-        package var help: String?
-        package var placeholder: String?
-        package var defaultValue: String?
-        package var choices: [String]
-        package var envVar: String?
-        package var configKey: String?
+        public var id: String
+        public var label: String
+        public var kind: ConfigOptionKind
+        public var help: String?
+        public var placeholder: String?
+        public var defaultValue: String?
+        public var choices: [String]
+        public var envVar: String?
+        public var configKey: String?
 
-        package init(
+        public init(
             id: String,
             label: String,
             kind: ConfigOptionKind = .string,
@@ -54,7 +54,7 @@ package extension CrawlAppManifest {
             case configKey = "config_key"
         }
 
-        package init(from decoder: Decoder) throws {
+        public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             self.id = try container.decode(String.self, forKey: .id)
             self.label = try container.decodeIfPresent(String.self, forKey: .label) ?? self.id
@@ -69,12 +69,12 @@ package extension CrawlAppManifest {
     }
 
     struct ConfigSection: Codable, Equatable, Sendable, Identifiable {
-        package var id: String
-        package var title: String
-        package var caption: String?
-        package var optionIDs: [String]
+        public var id: String
+        public var title: String
+        public var caption: String?
+        public var optionIDs: [String]
 
-        package init(id: String, title: String, caption: String? = nil, optionIDs: [String]) {
+        public init(id: String, title: String, caption: String? = nil, optionIDs: [String]) {
             self.id = id
             self.title = title
             self.caption = caption

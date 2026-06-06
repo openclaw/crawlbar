@@ -1,7 +1,7 @@
 import Foundation
 
-package enum GitcrawlStatusSnapshot {
-    package static func repository(for installation: CrawlAppInstallation) -> String? {
+public enum GitcrawlStatusSnapshot {
+    public static func repository(for installation: CrawlAppInstallation) -> String? {
         guard installation.id == BuiltInCrawlApps.gitcrawlID else { return nil }
         if let databasePath = Self.configuredDatabasePath(for: installation),
            let repository = Self.repository(fromDatabasePath: databasePath)
@@ -19,7 +19,7 @@ package enum GitcrawlStatusSnapshot {
         return Self.reportContext(for: installation)?.repository
     }
 
-    package static func status(for installation: CrawlAppInstallation) -> CrawlAppStatus? {
+    public static func status(for installation: CrawlAppInstallation) -> CrawlAppStatus? {
         guard installation.id == BuiltInCrawlApps.gitcrawlID else { return nil }
         guard let context = Self.reportContext(for: installation),
               let data = try? Data(contentsOf: context.reportURL),

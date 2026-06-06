@@ -1,17 +1,17 @@
 import Foundation
 
-package final class CrawlExecutableResolver: @unchecked Sendable {
+public final class CrawlExecutableResolver: @unchecked Sendable {
     private let fileManager: FileManager
     private let environment: [String: String]
     private let lock = NSLock()
     private var resolvedExecutables: [String: String] = [:]
 
-    package init(fileManager: FileManager = .default, environment: [String: String] = ProcessInfo.processInfo.environment) {
+    public init(fileManager: FileManager = .default, environment: [String: String] = ProcessInfo.processInfo.environment) {
         self.fileManager = fileManager
         self.environment = CrawlProcessEnvironment.normalized(environment)
     }
 
-    package func resolve(_ requestedPathOrName: String) -> String? {
+    public func resolve(_ requestedPathOrName: String) -> String? {
         self.lock.lock()
         if let cached = self.resolvedExecutables[requestedPathOrName] {
             self.lock.unlock()

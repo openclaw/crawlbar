@@ -25,14 +25,14 @@ enum CrawlInstallerError: LocalizedError, Sendable {
     }
 }
 
-package struct CrawlInstaller: @unchecked Sendable {
+public struct CrawlInstaller: @unchecked Sendable {
     private static let timeoutTerminationGrace: DispatchTimeInterval = .milliseconds(500)
 
     private let resolver: CrawlExecutableResolver
     private let redactor: CrawlCommandRedactor
     private let environment: [String: String]
 
-    package init(
+    public init(
         resolver: CrawlExecutableResolver = CrawlExecutableResolver(),
         redactor: CrawlCommandRedactor = CrawlCommandRedactor(),
         environment: [String: String] = ProcessInfo.processInfo.environment)
@@ -42,7 +42,7 @@ package struct CrawlInstaller: @unchecked Sendable {
         self.environment = CrawlProcessEnvironment.normalized(environment)
     }
 
-    package func install(_ installation: CrawlAppInstallation, timeoutSeconds: TimeInterval = 900) throws -> CrawlCommandResult {
+    public func install(_ installation: CrawlAppInstallation, timeoutSeconds: TimeInterval = 900) throws -> CrawlCommandResult {
         guard let install = installation.manifest.install else {
             throw CrawlInstallerError.installUnavailable(installation.id)
         }

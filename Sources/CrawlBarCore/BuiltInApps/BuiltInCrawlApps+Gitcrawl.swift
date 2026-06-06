@@ -1,6 +1,6 @@
 import Foundation
 
-package extension BuiltInCrawlApps {
+public extension BuiltInCrawlApps {
     static let gitcrawl = CrawlAppManifest(
         id: Self.gitcrawlID,
         displayName: "GitHub",

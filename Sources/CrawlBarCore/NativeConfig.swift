@@ -1,10 +1,10 @@
 import Foundation
 
-package struct CrawlNativeConfigStore: @unchecked Sendable {
+public struct CrawlNativeConfigStore: @unchecked Sendable {
     private let fileManager: FileManager
     private let cache: CrawlNativeConfigCache
 
-    package init(fileManager: FileManager = .default) {
+    public init(fileManager: FileManager = .default) {
         self.init(fileManager: fileManager, cache: .shared)
     }
 
@@ -13,7 +13,7 @@ package struct CrawlNativeConfigStore: @unchecked Sendable {
         self.cache = cache
     }
 
-    package func resolvedConfigValues(
+    public func resolvedConfigValues(
         appConfig: CrawlBarAppConfig,
         manifest: CrawlAppManifest,
         includeSecrets: Bool = true)
@@ -27,7 +27,7 @@ package struct CrawlNativeConfigStore: @unchecked Sendable {
         return merged.filter { !secretIDs.contains($0.key) }
     }
 
-    package func write(
+    public func write(
         appConfig: CrawlBarAppConfig,
         manifest: CrawlAppManifest,
         clearMissingSecretIDs: Set<String> = [])
@@ -44,7 +44,7 @@ package struct CrawlNativeConfigStore: @unchecked Sendable {
         self.cache.remove(path: PathExpander.expandHome(path), appID: manifest.id)
     }
 
-    package func write(
+    public func write(
         config: CrawlBarConfig,
         clearMissingSecretIDsByAppID: [CrawlAppID: Set<String>] = [:])
         throws
@@ -61,7 +61,7 @@ package struct CrawlNativeConfigStore: @unchecked Sendable {
         }
     }
 
-    package func read(path: String, manifest: CrawlAppManifest) throws -> [String: String] {
+    public func read(path: String, manifest: CrawlAppManifest) throws -> [String: String] {
         guard self.fileManager.fileExists(atPath: path) else { return [:] }
         let lines = try String(contentsOfFile: path, encoding: .utf8).split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         var values: [String: String] = [:]

@@ -1,13 +1,13 @@
 import Foundation
 
-package extension CrawlAppManifest {
+public extension CrawlAppManifest {
     struct Branding: Codable, Equatable, Sendable {
-        package var symbolName: String
-        package var accentColor: String
-        package var iconPath: String?
-        package var bundleIdentifier: String?
+        public var symbolName: String
+        public var accentColor: String
+        public var iconPath: String?
+        public var bundleIdentifier: String?
 
-        package init(
+        public init(
             symbolName: String,
             accentColor: String,
             iconPath: String? = nil,

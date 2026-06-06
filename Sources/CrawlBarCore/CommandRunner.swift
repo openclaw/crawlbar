@@ -1,6 +1,6 @@
 import Foundation
 
-package struct CrawlCommandRunner: @unchecked Sendable {
+public struct CrawlCommandRunner: @unchecked Sendable {
     static let timeoutTerminationGrace: DispatchTimeInterval = .milliseconds(500)
 
     let resolver: CrawlExecutableResolver
@@ -8,7 +8,7 @@ package struct CrawlCommandRunner: @unchecked Sendable {
     let fileManager: FileManager
     let environment: [String: String]
 
-    package init(
+    public init(
         resolver: CrawlExecutableResolver = CrawlExecutableResolver(),
         redactor: CrawlCommandRedactor = CrawlCommandRedactor(),
         fileManager: FileManager = .default,
@@ -20,7 +20,7 @@ package struct CrawlCommandRunner: @unchecked Sendable {
         self.environment = CrawlProcessEnvironment.normalized(environment)
     }
 
-    package func run(
+    public func run(
         installation: CrawlAppInstallation,
         action: String,
         extraArguments: [String] = [],

@@ -1,6 +1,6 @@
 import Foundation
 
-package extension BuiltInCrawlApps {
+public extension BuiltInCrawlApps {
     static let telecrawl = CrawlAppManifest(
         id: Self.telecrawlID,
         displayName: "Telegram",

@@ -1,6 +1,6 @@
 import Foundation
 
-package extension BuiltInCrawlApps {
+public extension BuiltInCrawlApps {
     static let graincrawl = CrawlAppManifest(
         id: Self.graincrawlID,
         displayName: "Granola",

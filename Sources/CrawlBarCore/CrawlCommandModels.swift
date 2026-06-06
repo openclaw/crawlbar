@@ -1,18 +1,18 @@
 import Foundation
 
-package struct CrawlAppInstallation: Codable, Equatable, Sendable, Identifiable {
-    package var manifest: CrawlAppManifest
-    package var binaryPath: String?
-    package var configPathOverride: String?
-    package var configValues: [String: String]
-    package var staleAfterSeconds: Int?
-    package var enabled: Bool
+public struct CrawlAppInstallation: Codable, Equatable, Sendable, Identifiable {
+    public var manifest: CrawlAppManifest
+    public var binaryPath: String?
+    public var configPathOverride: String?
+    public var configValues: [String: String]
+    public var staleAfterSeconds: Int?
+    public var enabled: Bool
 
-    package var id: CrawlAppID {
+    public var id: CrawlAppID {
         self.manifest.id
     }
 
-    package init(
+    public init(
         manifest: CrawlAppManifest,
         binaryPath: String? = nil,
         configPathOverride: String? = nil,
@@ -29,20 +29,20 @@ package struct CrawlAppInstallation: Codable, Equatable, Sendable, Identifiable 
     }
 }
 
-package struct CrawlCommandResult: Codable, Equatable, Sendable {
-    package var appID: CrawlAppID
-    package var action: String
-    package var exitCode: Int32
-    package var stdout: String
-    package var stderr: String
-    package var startedAt: Date
-    package var finishedAt: Date
+public struct CrawlCommandResult: Codable, Equatable, Sendable {
+    public var appID: CrawlAppID
+    public var action: String
+    public var exitCode: Int32
+    public var stdout: String
+    public var stderr: String
+    public var startedAt: Date
+    public var finishedAt: Date
 
-    package var succeeded: Bool {
+    public var succeeded: Bool {
         self.exitCode == 0
     }
 
-    package init(
+    public init(
         appID: CrawlAppID,
         action: String,
         exitCode: Int32,
@@ -61,7 +61,7 @@ package struct CrawlCommandResult: Codable, Equatable, Sendable {
     }
 }
 
-package extension CrawlCommandResult {
+public extension CrawlCommandResult {
     var userFacingRunMessage: String? {
         if self.succeeded {
             return Self.firstLine(in: self.stderr)
