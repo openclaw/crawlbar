@@ -1,3 +1,11 @@
+---
+written_by: ai
+signal: ai-synthesis
+source: CrawlBar source layout after UI/Core/SelfTest decomposition
+editing: ai-edited
+truth_status: verified-state
+---
+
 # Contributing
 
 Keep changes small and prove the touched surface.
@@ -14,7 +22,9 @@ Use `swift run crawlbarctl status --app all --json` only when you expect local c
 
 ## Manifest Changes
 
-Prefer manifest metadata over hard-coded UI branches. Built-in manifests belong in `Sources/CrawlBarCore/BuiltInCrawlApps.swift`; app-specific parsing belongs in `StatusMapper.swift`.
+Prefer manifest metadata over hard-coded UI branches. Built-in manifests belong
+under `Sources/CrawlBarCore/BuiltInApps/`; app-specific status parsing belongs
+in the narrow `Sources/CrawlBarCore/StatusMapper*.swift` adapters.
 
 External manifest examples should use fake paths and no real tokens.
 
