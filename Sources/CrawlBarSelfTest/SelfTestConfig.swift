@@ -150,6 +150,7 @@ extension CrawlBarSelfTest {
         try Self.expect(BuiltInCrawlApps.gogcli.commands["status"] == ["auth", "list", "--check", "--json", "--no-input"], "Google status is wired")
         try Self.expect(BuiltInCrawlApps.wacli.availability == .available, "WhatsApp manifest is available")
         try Self.expect(BuiltInCrawlApps.wacli.commands["status"] == ["--account", "{config:account}", "--read-only", "--json", "doctor"], "WhatsApp status is wired")
+        try Self.expect(BuiltInCrawlApps.wacli.suggestion?.name == "WhatsApp", "WhatsApp manifest declares source app suggestion")
         try Self.expect(BuiltInCrawlApps.birdclaw.binary.name == "bird", "X app id uses bird executable")
         try Self.expect(BuiltInCrawlApps.telecrawl.availability == .available, "telecrawl is available")
         try Self.expect(BuiltInCrawlApps.telecrawl.commands["status"] == ["--json", "status"], "telecrawl uses JSON status command")

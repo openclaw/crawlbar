@@ -66,6 +66,19 @@ final class CrawlBarSettingsModel: NSObject, ObservableObject {
         NotificationCenter.default.removeObserver(self)
     }
 
+    var crawlerSections: [CrawlBarCrawlerSection] {
+        var grouped: [CrawlBarCrawlerCategory: [CrawlBarAppConfig]] = [:]
+        for app in self.apps {
+            let installation = self.installations[app.id]
+            let section = self.listSection(for: app, installation: installation)
+            grouped[section, default: []].append(app)
+        }
+        return CrawlBarCrawlerCategory.allCases.compactMap { section in
+            guard let apps = grouped[section], !apps.isEmpty else { return nil }
+            return CrawlBarCrawlerSection(kind: section, apps: apps)
+        }
+    }
+
     var sidebarSelectionIsValid: Bool {
         switch self.selectedSidebarItem {
         case .general:
@@ -77,4 +90,11 @@ final class CrawlBarSettingsModel: NSObject, ObservableObject {
         }
     }
 
+    func listSection(
+        for app: CrawlBarAppConfig,
+        installation: CrawlAppInstallation?)
+        -> CrawlBarCrawlerCategory
+    {
+        CrawlBarCrawlerClassifier.category(app: app, installation: installation)
+    }
 }
