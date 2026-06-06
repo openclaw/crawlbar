@@ -34,5 +34,6 @@ public extension BuiltInCrawlApps {
             .init(id: "execution", title: "Execution", optionIDs: ["access_path", "execution_mode"]),
             .init(id: "remote", title: "Remote Host", optionIDs: ["remote_target", "remote_run_as"]),
         ],
-        install: .init(method: .homebrew, package: "steipete/tap/bird"))
+        install: .init(method: .homebrew, package: "steipete/tap/bird"),
+        suggestion: Self.alwaysSuggest("X"))
 }

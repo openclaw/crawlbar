@@ -101,9 +101,9 @@ struct CrawlBarGeneralSettingsView: View {
                 CrawlBarPanel(title: "Crawler Inventory") {
                     Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
                         GridRow {
-                            CrawlBarFact(label: "Ready", value: "\(self.readyCount)")
-                            CrawlBarFact(label: "Missing CLI", value: "\(self.missingCount)")
-                            CrawlBarFact(label: "Coming Soon", value: "\(self.comingSoonCount)")
+                            CrawlBarFact(label: "My Crawlers", value: "\(self.count(.my))")
+                            CrawlBarFact(label: "Suggested", value: "\(self.count(.suggested))")
+                            CrawlBarFact(label: "More Crawlers", value: "\(self.count(.more))")
                         }
                     }
                 }
@@ -118,15 +118,7 @@ struct CrawlBarGeneralSettingsView: View {
         .padding(.vertical, CrawlBarSettingsLayout.detailVerticalPadding)
     }
 
-    private var readyCount: Int {
-        self.model.installations.values.filter { $0.manifest.availability == .available && $0.binaryPath != nil }.count
-    }
-
-    private var missingCount: Int {
-        self.model.installations.values.filter { $0.manifest.availability == .available && $0.binaryPath == nil }.count
-    }
-
-    private var comingSoonCount: Int {
-        self.model.installations.values.filter { $0.manifest.availability == .comingSoon }.count
+    private func count(_ section: CrawlBarCrawlerCategory) -> Int {
+        self.model.crawlerSections.first { $0.kind == section }?.apps.count ?? 0
     }
 }

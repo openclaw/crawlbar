@@ -17,21 +17,26 @@ struct CrawlBarSettingsView: View {
                             self.model.selectedSidebarItem = .general
                         }
                 }
-                Section("Crawlers") {
-                    ForEach(self.model.apps) { app in
-                        let item = CrawlBarSettingsSidebarItem.crawler(app.id)
-                        CrawlBarSidebarRow(
-                            app: app,
-                            manifest: self.model.installations[app.id]?.manifest,
-                            status: self.model.statuses[app.id],
-                            binaryPath: self.model.installations[app.id]?.binaryPath,
-                            isSelected: self.model.selectedSidebarItem == item)
-                            .tag(item as CrawlBarSettingsSidebarItem?)
-                            .contentShape(Rectangle())
-                            .listRowBackground(CrawlBarSidebarSelectionBackground(isSelected: self.model.selectedSidebarItem == item))
-                            .onTapGesture {
-                                self.model.selectedSidebarItem = item
-                            }
+                ForEach(self.model.crawlerSections) { section in
+                    Section {
+                        ForEach(section.apps) { app in
+                            let item = CrawlBarSettingsSidebarItem.crawler(app.id)
+                            CrawlBarSidebarRow(
+                                app: app,
+                                section: section.kind,
+                                manifest: self.model.installations[app.id]?.manifest,
+                                status: self.model.statuses[app.id],
+                                binaryPath: self.model.installations[app.id]?.binaryPath,
+                                isSelected: self.model.selectedSidebarItem == item)
+                                .tag(item as CrawlBarSettingsSidebarItem?)
+                                .contentShape(Rectangle())
+                                .listRowBackground(CrawlBarSidebarSelectionBackground(isSelected: self.model.selectedSidebarItem == item))
+                                .onTapGesture {
+                                    self.model.selectedSidebarItem = item
+                                }
+                        }
+                    } header: {
+                        CrawlBarSidebarSectionHeader(title: section.kind.title)
                     }
                 }
             }

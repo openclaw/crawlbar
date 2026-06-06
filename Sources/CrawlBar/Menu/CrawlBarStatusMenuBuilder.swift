@@ -22,26 +22,45 @@ struct CrawlBarStatusMenuBuilder {
         selectors: CrawlBarStatusMenuActionSelectors,
         openSettings: @escaping (CrawlAppID?) -> Void)
     {
-        let visibleInstallations = model.visibleInstallations
+        let myInstallations = model.myMenuInstallations
+        let suggestedInstallations = model.suggestedMenuInstallations
 
         menu.autoenablesItems = false
         menu.removeAllItems()
 
         menu.addItem(self.viewItem(for: CrawlBarMenuHeaderView(
-            installations: visibleInstallations,
+            installations: myInstallations,
             statuses: model.statuses,
             isRefreshing: model.isRefreshing,
-            refreshFrequency: model.refreshFrequency), enabled: false))
+            refreshFrequency: model.refreshFrequency,
+            suggestedCount: suggestedInstallations.count), enabled: false))
 
-        self.addCrawlers(
-            visibleInstallations,
+        self.addMyCrawlers(
+            myInstallations,
             statuses: model.statuses,
             to: menu,
             target: target,
             selector: selectors.showSettingsForApp,
             openSettings: openSettings)
 
+        self.addSuggestedCrawlers(
+            suggestedInstallations,
+            hasMyCrawlers: !myInstallations.isEmpty,
+            to: menu,
+            target: target,
+            selector: selectors.showSettingsForApp,
+            openSettings: openSettings)
+
         menu.addItem(.separator())
+        if model.moreCrawlerCount > 0 {
+            menu.addItem(self.actionItem(
+                title: "More Crawlers in Settings...",
+                action: selectors.showSettings,
+                target: target,
+                systemImage: "square.grid.2x2"))
+            menu.addItem(.separator())
+        }
+
         let refreshTitle = model.isRefreshing ? "Refreshing..." : "Refresh All"
         let refreshItem = self.actionItem(
             title: refreshTitle,
@@ -78,7 +97,7 @@ struct CrawlBarStatusMenuBuilder {
         self.itemFactory.clearHighlights(in: menu)
     }
 
-    private func addCrawlers(
+    private func addMyCrawlers(
         _ installations: [CrawlAppInstallation],
         statuses: [CrawlAppID: CrawlAppStatus],
         to menu: NSMenu,
@@ -101,6 +120,28 @@ struct CrawlBarStatusMenuBuilder {
         }
     }
 
+    private func addSuggestedCrawlers(
+        _ installations: [CrawlAppInstallation],
+        hasMyCrawlers: Bool,
+        to menu: NSMenu,
+        target: AnyObject,
+        selector: Selector,
+        openSettings: @escaping (CrawlAppID?) -> Void)
+    {
+        guard !installations.isEmpty else { return }
+        if hasMyCrawlers {
+            menu.addItem(self.viewItem(for: CrawlBarMenuSeparatorRowView(), enabled: false))
+        }
+        menu.addItem(self.viewItem(for: CrawlBarMenuSectionHeaderView(title: "Suggested"), enabled: false))
+        for installation in installations {
+            menu.addItem(self.suggestedMenuItem(
+                for: installation,
+                target: target,
+                selector: selector,
+                openSettings: openSettings))
+        }
+    }
+
     private func appMenuItem(
         for installation: CrawlAppInstallation,
         status: CrawlAppStatus?,
@@ -115,6 +156,23 @@ struct CrawlBarStatusMenuBuilder {
             onOpen: { openSettings(installation.id) })
         return self.crawlerItem(
             for: card,
+            installation: installation,
+            target: target,
+            selector: selector)
+    }
+
+    private func suggestedMenuItem(
+        for installation: CrawlAppInstallation,
+        target: AnyObject,
+        selector: Selector,
+        openSettings: @escaping (CrawlAppID?) -> Void)
+        -> NSMenuItem
+    {
+        let row = CrawlBarMenuSuggestionView(
+            installation: installation,
+            onOpen: { openSettings(installation.id) })
+        return self.crawlerItem(
+            for: row,
             installation: installation,
             target: target,
             selector: selector)

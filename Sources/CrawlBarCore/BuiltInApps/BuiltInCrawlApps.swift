@@ -29,4 +29,11 @@ public enum BuiltInCrawlApps {
         self.allByID[id]
     }
 
+    static func alwaysSuggest(_ name: String) -> CrawlAppManifest.Suggestion {
+        .init(kind: .always, name: name)
+    }
+
+    static func appSuggest(_ name: String, _ bundleIDs: [String]) -> CrawlAppManifest.Suggestion {
+        .init(kind: .app, name: name, bundleIDs: bundleIDs)
+    }
 }

@@ -18,6 +18,7 @@ struct CrawlBarMenuHeaderView: View {
     let statuses: [CrawlAppID: CrawlAppStatus]
     let isRefreshing: Bool
     let refreshFrequency: RefreshFrequency
+    let suggestedCount: Int
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -57,6 +58,12 @@ struct CrawlBarMenuHeaderView: View {
         let current = self.installations.filter {
             self.effectiveState(for: $0, status: self.statuses[$0.id]) == .current
         }.count
+        if self.installations.isEmpty, self.suggestedCount > 0 {
+            return "\(self.suggestedCount) suggested · \(CrawlBarFrequencyLabel.text(for: self.refreshFrequency))"
+        }
+        if self.suggestedCount > 0 {
+            return "\(current) current · \(self.suggestedCount) suggested"
+        }
         return "\(current) current · \(CrawlBarFrequencyLabel.text(for: self.refreshFrequency))"
     }
 
@@ -69,6 +76,61 @@ struct CrawlBarMenuHeaderView: View {
             return .stale
         }
         return state
+    }
+}
+
+struct CrawlBarMenuSectionHeaderView: View {
+    let title: String
+
+    var body: some View {
+        Text(self.title)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, CrawlBarMenuStyle.cardHorizontalPadding)
+            .padding(.top, 4)
+            .padding(.bottom, 1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct CrawlBarMenuSuggestionView: View {
+    let installation: CrawlAppInstallation
+    let onOpen: () -> Void
+    @Environment(\.crawlBarMenuItemHighlighted) private var isHighlighted
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            CrawlBarBrandIcon(manifest: self.installation.manifest, appID: self.installation.id)
+                .frame(width: 26, height: 26)
+                .opacity(0.82)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(CrawlBarCrawlerTitle.text(for: self.installation.id, manifest: self.installation.manifest))
+                    .font(.subheadline)
+                    .lineLimit(1)
+                Text(self.detailText)
+                    .font(.caption)
+                    .foregroundStyle(CrawlBarMenuHighlightStyle.secondary(self.isHighlighted))
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, CrawlBarMenuStyle.cardHorizontalPadding)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: self.onOpen)
+    }
+
+    private var detailText: String {
+        guard let suggestion = self.installation.manifest.suggestion else {
+            return "Connect \(self.installation.manifest.binary.name)"
+        }
+        switch suggestion.kind {
+        case .always:
+            return "Connect \(self.installation.manifest.binary.name)"
+        case .app:
+            return "\(suggestion.name) is installed"
+        }
     }
 }
 
