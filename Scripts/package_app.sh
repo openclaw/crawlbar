@@ -20,8 +20,8 @@ cp ".build/release/CrawlBar" "$MACOS_DIR/CrawlBar"
 cp ".build/release/crawlbarctl" "$HELPERS_DIR/crawlbar"
 RESOURCE_BUNDLE=".build/release/CrawlBar_CrawlBar.bundle"
 if [ -d "$RESOURCE_BUNDLE" ]; then
-  cp -R "$RESOURCE_BUNDLE" "$APP_DIR/CrawlBar_CrawlBar.bundle"
-  if ! find "$APP_DIR/CrawlBar_CrawlBar.bundle" -type f -print -quit | grep -q .; then
+  cp -R "$RESOURCE_BUNDLE" "$RESOURCES_DIR/CrawlBar_CrawlBar.bundle"
+  if ! find "$RESOURCES_DIR/CrawlBar_CrawlBar.bundle" -type f -print -quit | grep -q .; then
     echo "SwiftPM resource bundle is empty: $RESOURCE_BUNDLE" >&2
     exit 1
   fi
@@ -50,10 +50,16 @@ cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
   <string>0.2.2</string>
   <key>CFBundleVersion</key>
   <string>1</string>
-  <key>LSUIElement</key>
-  <true/>
+  <key>LSMinimumSystemVersion</key>
+  <string>14.0</string>
+  <key>NSPrincipalClass</key>
+  <string>NSApplication</string>
 </dict>
 </plist>
 PLIST
+
+if command -v codesign >/dev/null 2>&1; then
+  codesign --force --deep --sign - "$APP_DIR" >/dev/null
+fi
 
 echo "$APP_DIR"
