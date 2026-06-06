@@ -192,6 +192,7 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
 
     private func showInApplicationSwitcher() {
+        // Settings needs regular activation so macOS treats the window like a normal app window for focus and accessibility.
         NSApplication.shared.setActivationPolicy(.regular)
         NSApplication.shared.activate()
     }

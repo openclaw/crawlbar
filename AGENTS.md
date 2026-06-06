@@ -1,3 +1,7 @@
+---
+written_by: ai
+---
+
 # AGENTS.md
 
 This file governs work in this repository.

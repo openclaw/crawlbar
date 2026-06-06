@@ -1,3 +1,7 @@
+---
+written_by: ai
+---
+
 # CrawlBar UI Rules
 
 These rules keep CrawlBar's SwiftUI code native-first, small, and composable.

@@ -1,3 +1,7 @@
+---
+written_by: ai
+---
+
 # CrawlBar Quality Rubric
 
 This is the engineering review contract for CrawlBar. Use it with
