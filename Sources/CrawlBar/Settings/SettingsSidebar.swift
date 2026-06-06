@@ -99,9 +99,9 @@ struct CrawlBarSidebarRow: View {
 
     private var subtitle: String {
         let binaryName = self.manifest?.binary.name ?? self.app.id.rawValue
+        if self.manifest?.availability == .comingSoon { return "\(binaryName) · coming soon" }
         if self.section == .suggested { return self.suggestedSubtitle }
         if self.section == .more { return self.moreSubtitle }
-        if self.manifest?.availability == .comingSoon { return "\(binaryName) · coming soon" }
         if !self.app.enabled { return "Disabled" }
         if self.binaryPath == nil { return "Missing \(binaryName)" }
         if self.rowState == .needsAuth {
