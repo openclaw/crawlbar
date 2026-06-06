@@ -1,12 +1,12 @@
 import Foundation
 import Security
 
-enum CrawlSecretStoreError: LocalizedError, Sendable {
+public enum CrawlSecretStoreError: LocalizedError, Sendable {
     case readFailed(OSStatus)
     case writeFailed(OSStatus)
     case deleteFailed(OSStatus)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case let .readFailed(status):
             "Keychain read failed with status \(status)"
@@ -18,14 +18,14 @@ enum CrawlSecretStoreError: LocalizedError, Sendable {
     }
 }
 
-struct CrawlSecretStore: @unchecked Sendable {
+public struct CrawlSecretStore: @unchecked Sendable {
     private let service: String
 
-    init(service: String = "com.vincentkoc.CrawlBar") {
+    public init(service: String = "com.vincentkoc.CrawlBar") {
         self.service = service
     }
 
-    func value(appID: CrawlAppID, optionID: String) throws -> String? {
+    public func value(appID: CrawlAppID, optionID: String) throws -> String? {
         var query = self.baseQuery(appID: appID, optionID: optionID)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -40,7 +40,7 @@ struct CrawlSecretStore: @unchecked Sendable {
         return String(data: data, encoding: .utf8)
     }
 
-    func set(_ value: String?, appID: CrawlAppID, optionID: String) throws {
+    public func set(_ value: String?, appID: CrawlAppID, optionID: String) throws {
         var query = self.baseQuery(appID: appID, optionID: optionID)
         let deleteStatus = SecItemDelete(query as CFDictionary)
         if deleteStatus != errSecSuccess, deleteStatus != errSecItemNotFound {

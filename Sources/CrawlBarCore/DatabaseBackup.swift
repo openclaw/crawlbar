@@ -21,12 +21,12 @@ public struct CrawlDatabaseBackup: Codable, Equatable, Sendable {
     }
 }
 
-enum CrawlDatabaseBackupError: LocalizedError, Sendable {
+public enum CrawlDatabaseBackupError: LocalizedError, Sendable {
     case noDatabases(CrawlAppID)
     case sqliteUnavailable
     case sqliteBackupFailed(path: String, message: String)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case let .noDatabases(appID):
             "\(appID.rawValue) does not expose any local database files to back up"

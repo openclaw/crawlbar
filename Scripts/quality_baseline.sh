@@ -57,7 +57,7 @@ find Sources -name '*.swift' -print0 \
   | head -30
 
 section "CrawlBarCore Interface Surface" \
-  "CrawlBarCore is shipped as a library, so product/API drift is compatibility risk"
+  "CrawlBarCore is shipped as a library; these counts show review surface, not complete symbol compatibility"
 products="$(
   swift package describe \
     | awk '
@@ -70,8 +70,9 @@ products="$(
     | paste -sd,
 )"
 echo "products=${products}"
-(rg -n '^public ' Sources/CrawlBarCore || true) | wc -l | awk '{ print "public_declarations=" $1 }'
-(rg -n '^package ' Sources/CrawlBarCore || true) | wc -l | awk '{ print "package_declarations=" $1 }'
+(rg -n '^public ' Sources/CrawlBarCore || true) | wc -l | awk '{ print "raw_public_lines=" $1 }'
+(rg -n '^package ' Sources/CrawlBarCore || true) | wc -l | awk '{ print "raw_package_lines=" $1 }'
+echo "note=public extension members are public API but are not counted as raw public lines; use Swift symbol graphs for compatibility checks"
 echo "-- public --"
 rg -n '^public ' Sources/CrawlBarCore || true
 echo "-- package --"

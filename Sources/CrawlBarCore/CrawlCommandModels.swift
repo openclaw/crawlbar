@@ -29,6 +29,16 @@ public struct CrawlAppInstallation: Codable, Equatable, Sendable, Identifiable {
     }
 }
 
+public enum CrawlActionID: String, Codable, Hashable, Sendable {
+    case status
+    case doctor
+    case refresh
+    case publish
+    case update
+    case desktopCacheImport = "desktop-cache-import"
+    case exportMarkdown = "export-md"
+}
+
 public struct CrawlCommandResult: Codable, Equatable, Sendable {
     public var appID: CrawlAppID
     public var action: String

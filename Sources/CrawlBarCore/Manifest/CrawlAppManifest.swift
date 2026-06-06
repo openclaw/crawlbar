@@ -35,6 +35,44 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         privacy: CrawlAppManifest.Privacy = CrawlAppManifest.Privacy(),
         configOptions: [CrawlAppManifest.ConfigOption] = [],
         configSections: [CrawlAppManifest.ConfigSection] = [],
+        install: CrawlAppManifest.Install? = nil)
+    {
+        self.init(
+            schemaVersion: schemaVersion,
+            id: id,
+            displayName: displayName,
+            description: description,
+            availability: availability,
+            binary: binary,
+            execution: execution,
+            branding: branding,
+            paths: paths,
+            commands: commands,
+            capabilities: capabilities,
+            statusRequiresSecrets: statusRequiresSecrets,
+            privacy: privacy,
+            configOptions: configOptions,
+            configSections: configSections,
+            install: install,
+            suggestion: nil)
+    }
+
+    public init(
+        schemaVersion: Int = 1,
+        id: CrawlAppID,
+        displayName: String,
+        description: String,
+        availability: CrawlAppManifest.Availability = .available,
+        binary: CrawlAppManifest.Binary,
+        execution: CrawlAppManifest.Execution? = nil,
+        branding: CrawlAppManifest.Branding,
+        paths: CrawlAppManifest.Paths,
+        commands: [String: [String]],
+        capabilities: [CrawlAppCapability],
+        statusRequiresSecrets: Bool? = nil,
+        privacy: CrawlAppManifest.Privacy = CrawlAppManifest.Privacy(),
+        configOptions: [CrawlAppManifest.ConfigOption] = [],
+        configSections: [CrawlAppManifest.ConfigSection] = [],
         install: CrawlAppManifest.Install? = nil,
         suggestion: CrawlAppManifest.Suggestion? = nil)
     {

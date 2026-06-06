@@ -5,13 +5,13 @@ import Darwin
 import Glibc
 #endif
 
-enum CrawlInstallerError: LocalizedError, Sendable {
+public enum CrawlInstallerError: LocalizedError, Sendable {
     case installUnavailable(CrawlAppID)
     case brewUnavailable
     case unsupportedMethod(String)
     case failed(String)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case let .installUnavailable(appID):
             "\(appID.rawValue) does not declare an installer"

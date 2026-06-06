@@ -1,10 +1,10 @@
 import Foundation
 
-enum CrawlBarConfigStoreError: LocalizedError {
+public enum CrawlBarConfigStoreError: LocalizedError {
     case decodeFailed(String)
     case encodeFailed(String)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case let .decodeFailed(details):
             "Failed to decode CrawlBar config: \(details)"

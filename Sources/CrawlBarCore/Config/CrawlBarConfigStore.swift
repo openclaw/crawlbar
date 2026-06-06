@@ -8,14 +8,7 @@ public struct CrawlBarConfigStore: @unchecked Sendable {
 
     public init(
         fileURL: URL = Self.defaultURL(),
-        fileManager: FileManager = .default)
-    {
-        self.init(fileURL: fileURL, fileManager: fileManager, secretStore: CrawlSecretStore(), cache: .shared)
-    }
-
-    private init(
-        fileURL: URL,
-        fileManager: FileManager,
+        fileManager: FileManager = .default,
         secretStore: CrawlSecretStore = CrawlSecretStore(),
         cache: CrawlBarConfigCache = .shared)
     {

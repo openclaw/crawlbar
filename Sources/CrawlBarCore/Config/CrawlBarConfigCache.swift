@@ -1,7 +1,7 @@
 import Foundation
 
-final class CrawlBarConfigCache: @unchecked Sendable {
-    static let shared = CrawlBarConfigCache()
+public final class CrawlBarConfigCache: @unchecked Sendable {
+    public static let shared = CrawlBarConfigCache()
 
     private struct Entry {
         var modificationDate: Date?
@@ -11,7 +11,7 @@ final class CrawlBarConfigCache: @unchecked Sendable {
     private let lock = NSLock()
     private var entries: [String: Entry] = [:]
 
-    init() {}
+    public init() {}
 
     func config(path: String, modificationDate: Date?) -> CrawlBarConfig? {
         self.lock.lock()

@@ -18,11 +18,7 @@ public struct CrawlManifestCatalog: @unchecked Sendable {
     private let fileManager: FileManager
     private let scanCache: CrawlManifestScanCache
 
-    public init(fileManager: FileManager = .default) {
-        self.init(fileManager: fileManager, scanCache: .shared)
-    }
-
-    private init(fileManager: FileManager, scanCache: CrawlManifestScanCache) {
+    public init(fileManager: FileManager = .default, scanCache: CrawlManifestScanCache = .shared) {
         self.fileManager = fileManager
         self.scanCache = scanCache
     }
@@ -79,8 +75,8 @@ public struct CrawlManifestCatalog: @unchecked Sendable {
     }
 }
 
-final class CrawlManifestScanCache: @unchecked Sendable {
-    static let shared = CrawlManifestScanCache()
+public final class CrawlManifestScanCache: @unchecked Sendable {
+    public static let shared = CrawlManifestScanCache()
 
     private struct Entry {
         var loadedAt: Date
@@ -92,7 +88,7 @@ final class CrawlManifestScanCache: @unchecked Sendable {
     private var entries: [String: Entry] = [:]
     private let timeToLive: TimeInterval
 
-    init(timeToLive: TimeInterval = 2) {
+    public init(timeToLive: TimeInterval = 2) {
         self.timeToLive = timeToLive
     }
 

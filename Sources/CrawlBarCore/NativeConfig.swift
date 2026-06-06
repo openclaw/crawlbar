@@ -4,11 +4,7 @@ public struct CrawlNativeConfigStore: @unchecked Sendable {
     private let fileManager: FileManager
     private let cache: CrawlNativeConfigCache
 
-    public init(fileManager: FileManager = .default) {
-        self.init(fileManager: fileManager, cache: .shared)
-    }
-
-    private init(fileManager: FileManager, cache: CrawlNativeConfigCache) {
+    public init(fileManager: FileManager = .default, cache: CrawlNativeConfigCache = .shared) {
         self.fileManager = fileManager
         self.cache = cache
     }
@@ -261,8 +257,8 @@ public struct CrawlNativeConfigStore: @unchecked Sendable {
     }
 }
 
-final class CrawlNativeConfigCache: @unchecked Sendable {
-    static let shared = CrawlNativeConfigCache()
+public final class CrawlNativeConfigCache: @unchecked Sendable {
+    public static let shared = CrawlNativeConfigCache()
 
     private struct Entry {
         var modificationDate: Date?
@@ -272,7 +268,7 @@ final class CrawlNativeConfigCache: @unchecked Sendable {
     private let lock = NSLock()
     private var entries: [String: Entry] = [:]
 
-    init() {}
+    public init() {}
 
     func values(path: String, appID: CrawlAppID, manifestSignature: String, modificationDate: Date?) -> [String: String]? {
         let key = self.key(path: path, appID: appID, manifestSignature: manifestSignature)
