@@ -1,10 +1,10 @@
 import Foundation
 
-public struct CrawlActionLogStore: @unchecked Sendable {
-    public let directoryURL: URL
+package struct CrawlActionLogStore: @unchecked Sendable {
+    package let directoryURL: URL
     private let fileManager: FileManager
 
-    public init(
+    package init(
         directoryURL: URL = Self.defaultDirectory(),
         fileManager: FileManager = .default)
     {
@@ -12,7 +12,7 @@ public struct CrawlActionLogStore: @unchecked Sendable {
         self.fileManager = fileManager
     }
 
-    public func save(_ result: CrawlCommandResult) throws -> URL {
+    package func save(_ result: CrawlCommandResult) throws -> URL {
         if !self.fileManager.fileExists(atPath: self.directoryURL.path) {
             try self.fileManager.createDirectory(at: self.directoryURL, withIntermediateDirectories: true)
         }
@@ -31,7 +31,7 @@ public struct CrawlActionLogStore: @unchecked Sendable {
         return url
     }
 
-    public func recent(limit: Int = 20) -> [URL] {
+    package func recent(limit: Int = 20) -> [URL] {
         guard let urls = try? self.fileManager.contentsOfDirectory(
             at: self.directoryURL,
             includingPropertiesForKeys: [.contentModificationDateKey])
@@ -47,14 +47,14 @@ public struct CrawlActionLogStore: @unchecked Sendable {
             .map(\.0)
     }
 
-    public func recentResults(limit: Int = 20) -> [CrawlCommandResult] {
+    package func recentResults(limit: Int = 20) -> [CrawlCommandResult] {
         self.recent(limit: limit).compactMap { url in
             guard let data = try? Data(contentsOf: url) else { return nil }
             return try? CrawlCoding.makeJSONDecoder().decode(CrawlCommandResult.self, from: data)
         }
     }
 
-    public static func defaultDirectory(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
+    package static func defaultDirectory(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
         home
             .appendingPathComponent(".crawlbar", isDirectory: true)
             .appendingPathComponent("logs", isDirectory: true)

@@ -1,14 +1,14 @@
 import Foundation
 
-public enum CrawlDatabaseInventory {
-    public static func enrich(_ status: CrawlAppStatus, manifest: CrawlAppManifest) -> CrawlAppStatus {
+enum CrawlDatabaseInventory {
+    static func enrich(_ status: CrawlAppStatus, manifest: CrawlAppManifest) -> CrawlAppStatus {
         guard status.databases.isEmpty else { return status }
         var copy = status
         copy.databases = Self.resources(for: status, manifest: manifest)
         return copy
     }
 
-    public static func resources(for status: CrawlAppStatus, manifest: CrawlAppManifest) -> [CrawlDatabaseResource] {
+    static func resources(for status: CrawlAppStatus, manifest: CrawlAppManifest) -> [CrawlDatabaseResource] {
         switch manifest.id {
         case BuiltInCrawlApps.gitcrawlID:
             return Self.gitcrawlResources(status: status)

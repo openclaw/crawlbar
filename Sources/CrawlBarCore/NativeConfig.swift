@@ -1,15 +1,19 @@
 import Foundation
 
-public struct CrawlNativeConfigStore: @unchecked Sendable {
+package struct CrawlNativeConfigStore: @unchecked Sendable {
     private let fileManager: FileManager
     private let cache: CrawlNativeConfigCache
 
-    public init(fileManager: FileManager = .default, cache: CrawlNativeConfigCache = .shared) {
+    package init(fileManager: FileManager = .default) {
+        self.init(fileManager: fileManager, cache: .shared)
+    }
+
+    private init(fileManager: FileManager, cache: CrawlNativeConfigCache) {
         self.fileManager = fileManager
         self.cache = cache
     }
 
-    public func resolvedConfigValues(
+    package func resolvedConfigValues(
         appConfig: CrawlBarAppConfig,
         manifest: CrawlAppManifest,
         includeSecrets: Bool = true)
@@ -23,7 +27,7 @@ public struct CrawlNativeConfigStore: @unchecked Sendable {
         return merged.filter { !secretIDs.contains($0.key) }
     }
 
-    public func write(
+    package func write(
         appConfig: CrawlBarAppConfig,
         manifest: CrawlAppManifest,
         clearMissingSecretIDs: Set<String> = [])
@@ -40,7 +44,7 @@ public struct CrawlNativeConfigStore: @unchecked Sendable {
         self.cache.remove(path: PathExpander.expandHome(path), appID: manifest.id)
     }
 
-    public func write(
+    package func write(
         config: CrawlBarConfig,
         clearMissingSecretIDsByAppID: [CrawlAppID: Set<String>] = [:])
         throws
@@ -57,7 +61,7 @@ public struct CrawlNativeConfigStore: @unchecked Sendable {
         }
     }
 
-    public func read(path: String, manifest: CrawlAppManifest) throws -> [String: String] {
+    package func read(path: String, manifest: CrawlAppManifest) throws -> [String: String] {
         guard self.fileManager.fileExists(atPath: path) else { return [:] }
         let lines = try String(contentsOfFile: path, encoding: .utf8).split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         var values: [String: String] = [:]
@@ -257,8 +261,8 @@ public struct CrawlNativeConfigStore: @unchecked Sendable {
     }
 }
 
-public final class CrawlNativeConfigCache: @unchecked Sendable {
-    public static let shared = CrawlNativeConfigCache()
+final class CrawlNativeConfigCache: @unchecked Sendable {
+    static let shared = CrawlNativeConfigCache()
 
     private struct Entry {
         var modificationDate: Date?
@@ -268,7 +272,7 @@ public final class CrawlNativeConfigCache: @unchecked Sendable {
     private let lock = NSLock()
     private var entries: [String: Entry] = [:]
 
-    public init() {}
+    init() {}
 
     func values(path: String, appID: CrawlAppID, manifestSignature: String, modificationDate: Date?) -> [String: String]? {
         let key = self.key(path: path, appID: appID, manifestSignature: manifestSignature)

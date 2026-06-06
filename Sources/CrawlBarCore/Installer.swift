@@ -5,13 +5,13 @@ import Darwin
 import Glibc
 #endif
 
-public enum CrawlInstallerError: LocalizedError, Sendable {
+enum CrawlInstallerError: LocalizedError, Sendable {
     case installUnavailable(CrawlAppID)
     case brewUnavailable
     case unsupportedMethod(String)
     case failed(String)
 
-    public var errorDescription: String? {
+    var errorDescription: String? {
         switch self {
         case let .installUnavailable(appID):
             "\(appID.rawValue) does not declare an installer"
@@ -25,14 +25,14 @@ public enum CrawlInstallerError: LocalizedError, Sendable {
     }
 }
 
-public struct CrawlInstaller: @unchecked Sendable {
+package struct CrawlInstaller: @unchecked Sendable {
     private static let timeoutTerminationGrace: DispatchTimeInterval = .milliseconds(500)
 
     private let resolver: CrawlExecutableResolver
     private let redactor: CrawlCommandRedactor
     private let environment: [String: String]
 
-    public init(
+    package init(
         resolver: CrawlExecutableResolver = CrawlExecutableResolver(),
         redactor: CrawlCommandRedactor = CrawlCommandRedactor(),
         environment: [String: String] = ProcessInfo.processInfo.environment)
@@ -42,7 +42,7 @@ public struct CrawlInstaller: @unchecked Sendable {
         self.environment = CrawlProcessEnvironment.normalized(environment)
     }
 
-    public func install(_ installation: CrawlAppInstallation, timeoutSeconds: TimeInterval = 900) throws -> CrawlCommandResult {
+    package func install(_ installation: CrawlAppInstallation, timeoutSeconds: TimeInterval = 900) throws -> CrawlCommandResult {
         guard let install = installation.manifest.install else {
             throw CrawlInstallerError.installUnavailable(installation.id)
         }

@@ -1,29 +1,33 @@
 import Foundation
 
-public struct CrawlManifestDiagnostic: Codable, Equatable, Sendable, Identifiable {
-    public var path: String
-    public var message: String
+package struct CrawlManifestDiagnostic: Codable, Equatable, Sendable, Identifiable {
+    package var path: String
+    package var message: String
 
-    public var id: String {
+    package var id: String {
         self.path
     }
 
-    public init(path: String, message: String) {
+    package init(path: String, message: String) {
         self.path = path
         self.message = message
     }
 }
 
-public struct CrawlManifestCatalog: @unchecked Sendable {
+package struct CrawlManifestCatalog: @unchecked Sendable {
     private let fileManager: FileManager
     private let scanCache: CrawlManifestScanCache
 
-    public init(fileManager: FileManager = .default, scanCache: CrawlManifestScanCache = .shared) {
+    package init(fileManager: FileManager = .default) {
+        self.init(fileManager: fileManager, scanCache: .shared)
+    }
+
+    private init(fileManager: FileManager, scanCache: CrawlManifestScanCache) {
         self.fileManager = fileManager
         self.scanCache = scanCache
     }
 
-    public func manifests(config: CrawlBarConfig) -> [CrawlAppManifest] {
+    package func manifests(config: CrawlBarConfig) -> [CrawlAppManifest] {
         var manifestsByID = BuiltInCrawlApps.allByID
         for manifest in self.externalManifestScan(directories: config.manifestDirectories).manifests {
             manifestsByID[manifest.id] = manifest
@@ -31,11 +35,11 @@ public struct CrawlManifestCatalog: @unchecked Sendable {
         return manifestsByID.values.sorted { $0.id < $1.id }
     }
 
-    public func manifest(for id: CrawlAppID, config: CrawlBarConfig) -> CrawlAppManifest? {
+    package func manifest(for id: CrawlAppID, config: CrawlBarConfig) -> CrawlAppManifest? {
         self.manifests(config: config).first { $0.id == id }
     }
 
-    public func diagnostics(config: CrawlBarConfig) -> [CrawlManifestDiagnostic] {
+    package func diagnostics(config: CrawlBarConfig) -> [CrawlManifestDiagnostic] {
         self.externalManifestScan(directories: config.manifestDirectories).diagnostics
     }
 
@@ -75,8 +79,8 @@ public struct CrawlManifestCatalog: @unchecked Sendable {
     }
 }
 
-public final class CrawlManifestScanCache: @unchecked Sendable {
-    public static let shared = CrawlManifestScanCache()
+final class CrawlManifestScanCache: @unchecked Sendable {
+    static let shared = CrawlManifestScanCache()
 
     private struct Entry {
         var loadedAt: Date
@@ -88,7 +92,7 @@ public final class CrawlManifestScanCache: @unchecked Sendable {
     private var entries: [String: Entry] = [:]
     private let timeToLive: TimeInterval
 
-    public init(timeToLive: TimeInterval = 2) {
+    init(timeToLive: TimeInterval = 2) {
         self.timeToLive = timeToLive
     }
 

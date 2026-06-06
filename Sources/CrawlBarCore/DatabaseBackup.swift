@@ -1,12 +1,12 @@
 import Foundation
 
-public struct CrawlDatabaseBackup: Codable, Equatable, Sendable {
-    public var appID: CrawlAppID
-    public var directory: String
-    public var files: [String]
-    public var createdAt: Date
+package struct CrawlDatabaseBackup: Codable, Equatable, Sendable {
+    package var appID: CrawlAppID
+    package var directory: String
+    package var files: [String]
+    package var createdAt: Date
 
-    public init(appID: CrawlAppID, directory: String, files: [String], createdAt: Date = Date()) {
+    package init(appID: CrawlAppID, directory: String, files: [String], createdAt: Date = Date()) {
         self.appID = appID
         self.directory = directory
         self.files = files
@@ -21,12 +21,12 @@ public struct CrawlDatabaseBackup: Codable, Equatable, Sendable {
     }
 }
 
-public enum CrawlDatabaseBackupError: LocalizedError, Sendable {
+enum CrawlDatabaseBackupError: LocalizedError, Sendable {
     case noDatabases(CrawlAppID)
     case sqliteUnavailable
     case sqliteBackupFailed(path: String, message: String)
 
-    public var errorDescription: String? {
+    var errorDescription: String? {
         switch self {
         case let .noDatabases(appID):
             "\(appID.rawValue) does not expose any local database files to back up"
@@ -38,14 +38,14 @@ public enum CrawlDatabaseBackupError: LocalizedError, Sendable {
     }
 }
 
-public enum CrawlDatabaseBackupStore {
-    public static func defaultDirectory(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
+package enum CrawlDatabaseBackupStore {
+    package static func defaultDirectory(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
         home
             .appendingPathComponent(".crawlbar", isDirectory: true)
             .appendingPathComponent("backups", isDirectory: true)
     }
 
-    public static func backup(status: CrawlAppStatus, root: URL = Self.defaultDirectory()) throws -> CrawlDatabaseBackup {
+    package static func backup(status: CrawlAppStatus, root: URL = Self.defaultDirectory()) throws -> CrawlDatabaseBackup {
         let resources = status.databases
             .filter { $0.kind == .sqlite || $0.kind == .cache }
             .compactMap { resource -> (resource: CrawlDatabaseResource, source: URL)? in

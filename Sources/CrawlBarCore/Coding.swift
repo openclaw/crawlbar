@@ -1,7 +1,7 @@
 import Foundation
 
-public enum CrawlCoding {
-    public static func makeJSONEncoder(pretty: Bool = true) -> JSONEncoder {
+package enum CrawlCoding {
+    package static func makeJSONEncoder(pretty: Bool = true) -> JSONEncoder {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         if pretty {
@@ -10,7 +10,7 @@ public enum CrawlCoding {
         return encoder
     }
 
-    public static func makeJSONDecoder() -> JSONDecoder {
+    package static func makeJSONDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
@@ -51,7 +51,7 @@ extension ISO8601DateFormatter {
     }
 }
 
-public extension String {
+package extension String {
     var nilIfBlank: String? {
         let trimmed = self.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
