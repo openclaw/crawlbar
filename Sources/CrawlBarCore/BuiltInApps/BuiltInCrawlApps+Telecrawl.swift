@@ -28,6 +28,5 @@ public extension BuiltInCrawlApps {
             containsPrivateMessages: true,
             exportsSecrets: false,
             localOnlyScopes: ["telegram-desktop", "sqlite", "encrypted-git-backup"]),
-        install: .init(method: .homebrew, package: "steipete/tap/telecrawl"),
-        suggestion: Self.appSuggest("Telegram", ["ru.keepcoder.Telegram", "org.telegram.desktop"]))
+        install: .init(method: .homebrew, package: "steipete/tap/telecrawl"))
 }

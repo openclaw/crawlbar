@@ -39,35 +39,18 @@ final class CrawlBarMenuModel: NSObject {
         NotificationCenter.default.removeObserver(self)
     }
 
-    var myMenuInstallations: [CrawlAppInstallation] {
+    var visibleInstallations: [CrawlAppInstallation] {
         self.installations.filter { installation in
             guard installation.manifest.availability == .available else { return false }
-            guard let config = self.appConfigs[installation.id] else { return false }
-            guard config.enabled, config.showInMenuBar else { return false }
-            return CrawlBarCrawlerClassifier.isMyCrawler(app: config, installation: installation)
+            return self.appConfigs[installation.id]?.showInMenuBar ?? true
         }
-    }
-
-    var suggestedMenuInstallations: [CrawlAppInstallation] {
-        self.installations.filter { installation in
-            guard installation.manifest.availability == .available else { return false }
-            guard let config = self.appConfigs[installation.id] else { return false }
-            guard config.enabled, config.showInMenuBar else { return false }
-            return CrawlBarCrawlerClassifier.category(app: config, installation: installation) == .suggested
-        }
-    }
-
-    var moreCrawlerCount: Int {
-        self.installations.filter { installation in
-            guard let config = self.appConfigs[installation.id] else { return false }
-            return CrawlBarCrawlerClassifier.category(app: config, installation: installation) == .more
-        }.count
     }
 
     var statusTargetInstallations: [CrawlAppInstallation] {
-        CrawlBarCrawlerClassifier.statusInstallations(
-            self.installations,
-            appConfigsByID: self.appConfigs)
+        self.installations.filter { installation in
+            guard installation.manifest.availability == .available else { return false }
+            return self.appConfigs[installation.id]?.enabled ?? installation.enabled
+        }
     }
 
     func appConfig(for id: CrawlAppID) -> CrawlBarAppConfig? {
@@ -89,14 +72,15 @@ final class CrawlBarMenuModel: NSObject {
         let generation = UUID()
         self.refreshGeneration = generation
         self.isRefreshing = true
+        let appConfigs = self.appConfigs
         let registry = self.registry
         let statusService = self.statusService
-        let appConfigs = self.appConfigs
         self.refreshTask = Task.detached {
             let installations = (try? registry.installationsForStatus(includeDisabled: true)) ?? []
-            let statusInstallations = CrawlBarCrawlerClassifier.statusInstallations(
-                installations,
-                appConfigsByID: appConfigs)
+            let statusInstallations = installations.filter { installation in
+                guard installation.manifest.availability == .available else { return false }
+                return appConfigs[installation.id]?.enabled ?? installation.enabled
+            }
             await MainActor.run {
                 guard self.refreshGeneration == generation else { return }
                 self.installations = installations

@@ -6,13 +6,6 @@ enum CrawlBarSettingsSidebarItem: Hashable {
     case crawler(CrawlAppID)
 }
 
-struct CrawlBarCrawlerSection: Identifiable {
-    let kind: CrawlBarCrawlerCategory
-    let apps: [CrawlBarAppConfig]
-
-    var id: CrawlBarCrawlerCategory { self.kind }
-}
-
 struct CrawlBarGeneralSidebarRow: View {
     let isSelected: Bool
 
@@ -41,21 +34,8 @@ struct CrawlBarSidebarSelectionBackground: View {
     }
 }
 
-struct CrawlBarSidebarSectionHeader: View {
-    let title: String
-
-    var body: some View {
-        Text(self.title)
-            .font(.system(size: 13, weight: .bold))
-            .foregroundStyle(.secondary)
-            .textCase(nil)
-            .padding(.top, 8)
-    }
-}
-
 struct CrawlBarSidebarRow: View {
     let app: CrawlBarAppConfig
-    let section: CrawlBarCrawlerCategory
     let manifest: CrawlAppManifest?
     let status: CrawlAppStatus?
     let binaryPath: String?
@@ -86,7 +66,6 @@ struct CrawlBarSidebarRow: View {
     }
 
     private var rowState: CrawlAppState {
-        if self.section != .my { return .disabled }
         if self.manifest?.availability == .comingSoon { return .disabled }
         if !self.app.enabled { return .disabled }
         if self.binaryPath == nil { return .needsConfig }
@@ -99,8 +78,6 @@ struct CrawlBarSidebarRow: View {
 
     private var subtitle: String {
         let binaryName = self.manifest?.binary.name ?? self.app.id.rawValue
-        if self.section == .suggested { return self.suggestedSubtitle }
-        if self.section == .more { return self.moreSubtitle }
         if self.manifest?.availability == .comingSoon { return "\(binaryName) · coming soon" }
         if !self.app.enabled { return "Disabled" }
         if self.binaryPath == nil { return "Missing \(binaryName)" }
@@ -130,27 +107,6 @@ struct CrawlBarSidebarRow: View {
         }
     }
 
-    private var moreSubtitle: String {
-        guard let suggestion = self.manifest?.suggestion,
-              suggestion.kind == .app
-        else {
-            return "Not installed on this computer"
-        }
-        return "\(suggestion.name) is not installed"
-    }
-
-    private var suggestedSubtitle: String {
-        guard let suggestion = self.manifest?.suggestion else {
-            return "Available crawler"
-        }
-        switch suggestion.kind {
-        case .always:
-            return "Available crawler"
-        case .app:
-            return "\(suggestion.name) is installed"
-        }
-    }
-
     private var syncedAt: Date? {
         if let lastSyncAt = self.status?.lastSyncAt {
             return lastSyncAt
@@ -163,7 +119,6 @@ struct CrawlBarSidebarRow: View {
 
     private var subtitleColor: Color {
         if self.isSelected { return Color.white.opacity(0.78) }
-        if self.section != .my { return Color.secondary }
         switch self.rowState {
         case .needsConfig, .needsAuth, .error:
             return Color.red

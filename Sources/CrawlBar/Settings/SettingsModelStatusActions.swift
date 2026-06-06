@@ -14,9 +14,10 @@ extension CrawlBarSettingsModel {
         self.refreshTask = Task.detached {
             let installations = (try? registry.installationsForStatus(includeDisabled: true)) ?? []
             let appConfigsByID = Dictionary(uniqueKeysWithValues: appsForStatus.map { ($0.id, $0) })
-            let statusInstallations = CrawlBarCrawlerClassifier.statusInstallations(
-                installations,
-                appConfigsByID: appConfigsByID)
+            let statusInstallations = installations.filter { installation in
+                guard installation.manifest.availability == .available else { return false }
+                return appConfigsByID[installation.id]?.enabled ?? installation.enabled
+            }
             await MainActor.run {
                 guard self.refreshGeneration == generation else { return }
                 let installationsByID = Dictionary(uniqueKeysWithValues: installations.map { ($0.id, $0) })
