@@ -31,9 +31,9 @@ Severity:
   complexity that will compound.
 - `P3`: polish, naming, or cleanup that is useful but not blocking.
 
-Completion rule: no accepted P0/P1 findings remain. P2 findings are fixed,
-explicitly deferred with a reason, or turned into the next slice. P3 findings
-do not block if the proof gates pass.
+A good stopping state has no accepted P0/P1 findings left. P2 findings are
+either fixed, explicitly deferred with a reason, or named as the next slice. P3
+findings usually do not block when the proof gates pass.
 
 ## Measurement Protocol
 
@@ -72,9 +72,10 @@ Suggested thresholds:
 Metrics only matter when the qualitative review agrees that a concept,
 responsibility, interface, or workflow became easier to understand.
 
-## Scorecard Artifact
+## Review Scorecard
 
-Every review or handoff should include this compact scorecard:
+For non-trivial reviews or handoffs, this compact scorecard keeps the result
+auditable without turning the rubric into ceremony:
 
 ```text
 baseline: command/path/date used
