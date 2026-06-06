@@ -50,7 +50,7 @@ recommended_fix:
 proof_needed:
 ```
 
-## Code Rules
+## Engineering Preferences
 
 Prefer boring code with one obvious place for each responsibility.
 
@@ -60,9 +60,10 @@ Prefer boring code with one obvious place for each responsibility.
 - Preserve shipped SwiftPM products and public APIs unless a maintainer accepts
   a breaking change.
 - Keep AppKit escapes narrow and local to app/window/menu boundaries.
-- Do not add settings, modes, scripts, feature flags, or adapters before there
-  is repeated evidence they are needed.
-- Do not remove user-visible functionality just to improve metrics.
+- Treat new settings, modes, scripts, feature flags, and adapters as design
+  debt unless there is repeated evidence they are needed.
+- Treat removal of user-visible functionality as a product decision, not a
+  metrics cleanup.
 
 ## Proof
 
@@ -80,8 +81,8 @@ dist/CrawlBar.app/Contents/Helpers/crawlbar config validate
 ```
 
 When UI behavior matters, prefer packaged-app proof plus an AX dump or
-screenshot. Do not claim native macOS behavior that was only tested by launching
-the raw SwiftPM executable.
+screenshot. Avoid claiming native macOS behavior that was only tested by
+launching the raw SwiftPM executable.
 
 ## Privacy
 
