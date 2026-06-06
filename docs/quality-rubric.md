@@ -87,10 +87,10 @@ anti_gaming_check: why this is not just LOC/files/build/screenshot progress
 next_slice: highest-leverage remaining accepted finding
 ```
 
-## Session Goal Notes
+## Planning Notes
 
-When a session goal is used for CrawlBar work, derive success criteria from the
-rubric instead of from a generic cleanup target. A useful goal names:
+For multi-step CrawlBar work, derive success criteria from the rubric instead
+of from a generic cleanup target. A useful work note names:
 
 - the product behavior or rubric axis being improved;
 - current evidence and known failures;
@@ -99,9 +99,9 @@ rubric instead of from a generic cleanup target. A useful goal names:
 - review lenses to run before handoff;
 - exact completion proof.
 
-Keep implementation state in an ExecPlan when the work is multi-step. Keep
-architecture rationale in an RFC/ADR if the decision should survive beyond the
-session. Keep CTO briefings concise and decision-grade.
+Keep volatile implementation state out of the rubric. Keep architecture
+rationale in repository-local docs only when the decision should survive beyond
+the current branch or PR. Keep handoffs concise and decision-grade.
 
 ## Axis 1: Product Boundary
 
@@ -387,7 +387,7 @@ Good:
 - Docs explain durable contracts, not volatile state.
 - Agent guidance points contributors to repository-local contracts.
 - Reviewers know what to measure and what counts as proof.
-- Implementation state goes in an ExecPlan when needed, not in the rubric.
+- Implementation state stays out of the rubric.
 
 Bad signals:
 
