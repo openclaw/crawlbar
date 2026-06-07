@@ -1,0 +1,9 @@
+before-061c347-01-visible bounds=3280,357,1120,874 window=63498
+before-061c347-02-hidden bounds=3280,357,1120,874 window=63498
+before-061c347-03-retoggled bounds=3280,357,1120,874 window=63498
+before-061c347-04-slack-detail bounds=3280,357,1120,874 window=63498
+after-334aed8-01-visible bounds=3280,357,1120,874 window=63506
+after-334aed8-02-hidden bounds=3280,357,1120,874 window=63506
+after-334aed8-03-retoggled bounds=3280,357,1120,874 window=63506
+after-334aed8-04-slack-detail bounds=3280,357,1120,874 window=63506
+before-061c347-slack-detail-recapture bounds=3280,357,1120,874 window=63524
