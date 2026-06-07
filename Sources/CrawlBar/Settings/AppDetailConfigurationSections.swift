@@ -39,12 +39,7 @@ extension CrawlBarAppDetailView {
 
     @ViewBuilder
     var configuration: some View {
-        if self.manifest?.availability == .comingSoon {
-            CrawlBarPanel(title: "Coming Soon") {
-                CrawlBarFact(label: "CLI", value: self.manifest?.binary.name ?? self.app.id.rawValue)
-                CrawlBarFact(label: "Config", value: self.manifest?.paths.defaultConfig ?? "Not declared")
-            }
-        } else if let manifest = self.manifest, !manifest.configOptions.isEmpty {
+        if let manifest = self.manifest, !manifest.configOptions.isEmpty {
             ForEach(self.configSections(for: manifest)) { section in
                 CrawlBarPanel(title: section.title, caption: section.caption) {
                     ForEach(section.options) { option in

@@ -5,7 +5,6 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
     public var id: CrawlAppID
     public var displayName: String
     public var description: String
-    public var availability: CrawlAppManifest.Availability
     public var binary: CrawlAppManifest.Binary
     public var execution: CrawlAppManifest.Execution?
     public var branding: CrawlAppManifest.Branding
@@ -24,7 +23,6 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         id: CrawlAppID,
         displayName: String,
         description: String,
-        availability: CrawlAppManifest.Availability = .available,
         binary: CrawlAppManifest.Binary,
         execution: CrawlAppManifest.Execution? = nil,
         branding: CrawlAppManifest.Branding,
@@ -41,7 +39,6 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         self.id = id
         self.displayName = displayName
         self.description = description
-        self.availability = availability
         self.binary = binary
         self.execution = execution
         self.branding = branding
@@ -60,7 +57,6 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         case id
         case displayName = "display_name"
         case description
-        case availability
         case binary
         case execution
         case branding
@@ -80,7 +76,6 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         self.id = try container.decode(CrawlAppID.self, forKey: .id)
         self.displayName = try container.decode(String.self, forKey: .displayName)
         self.description = try container.decode(String.self, forKey: .description)
-        self.availability = try container.decodeIfPresent(CrawlAppManifest.Availability.self, forKey: .availability) ?? .available
         self.binary = try container.decode(CrawlAppManifest.Binary.self, forKey: .binary)
         self.execution = try container.decodeIfPresent(CrawlAppManifest.Execution.self, forKey: .execution)
         self.branding = try container.decode(CrawlAppManifest.Branding.self, forKey: .branding)

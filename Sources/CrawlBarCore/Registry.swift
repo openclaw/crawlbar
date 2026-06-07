@@ -35,8 +35,7 @@ public struct CrawlAppRegistry: @unchecked Sendable {
                 appConfig,
                 manifest: manifest,
                 includeSecrets: includeSecrets)
-            let isAvailable = manifest.availability == .available
-            let enabled = isAvailable && nativeAppConfig.enabled
+            let enabled = nativeAppConfig.enabled
             guard includeDisabled || enabled else { return nil }
             let executionKind = manifest.executionKind(configValues: nativeAppConfig.configValues)
             let defaultBinary = executionKind == .ssh
@@ -45,7 +44,7 @@ public struct CrawlAppRegistry: @unchecked Sendable {
             let requestedBinary = executionKind == .ssh
                 ? defaultBinary
                 : nativeAppConfig.binaryPath?.nilIfBlank ?? defaultBinary
-            let resolvedBinary = isAvailable ? self.resolver.resolve(requestedBinary) : nil
+            let resolvedBinary = self.resolver.resolve(requestedBinary)
             let resolvedAppConfig = includeSecrets && enabled && resolvedBinary != nil
                 ? self.configStore.appConfigWithSecrets(nativeAppConfig, manifest: manifest)
                 : nativeAppConfig

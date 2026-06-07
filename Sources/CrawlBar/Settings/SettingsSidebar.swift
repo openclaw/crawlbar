@@ -82,12 +82,10 @@ struct CrawlBarSidebarRow: View {
         }
         .padding(.horizontal, 7)
         .padding(.vertical, 5)
-        .opacity(self.manifest?.availability == .comingSoon ? 0.58 : 1)
     }
 
     private var rowState: CrawlAppState {
         if self.section != .my { return .disabled }
-        if self.manifest?.availability == .comingSoon { return .disabled }
         if !self.app.enabled { return .disabled }
         if self.binaryPath == nil { return .needsConfig }
         let state = self.status?.state ?? .unknown
@@ -99,7 +97,6 @@ struct CrawlBarSidebarRow: View {
 
     private var subtitle: String {
         let binaryName = self.manifest?.binary.name ?? self.app.id.rawValue
-        if self.manifest?.availability == .comingSoon { return "\(binaryName) · coming soon" }
         if self.section == .suggested { return self.suggestedSubtitle }
         if self.section == .more { return self.moreSubtitle }
         if !self.app.enabled { return "Disabled" }

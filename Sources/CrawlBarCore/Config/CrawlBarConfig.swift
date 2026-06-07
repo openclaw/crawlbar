@@ -25,14 +25,8 @@ public struct CrawlBarConfig: Codable, Equatable, Sendable {
         var normalizedApps: [CrawlBarAppConfig] = []
         for var app in self.apps where !seen.contains(app.id) {
             seen.insert(app.id)
-            if BuiltInCrawlApps.manifest(for: app.id)?.availability == .comingSoon {
-                app.enabled = false
-                app.showInMenuBar = false
-                app.autoRefreshEnabled = false
-                app.shareEnabled = false
-                app.shareAfterRefresh = false
-            } else if Self.shouldEnableNewlyAvailableApp(id: app.id, fromVersion: self.version),
-                      !app.enabled, !app.showInMenuBar
+            if Self.shouldEnableNewlyAvailableApp(id: app.id, fromVersion: self.version),
+               !app.enabled, !app.showInMenuBar
             {
                 app.enabled = true
                 app.showInMenuBar = true
@@ -40,8 +34,7 @@ public struct CrawlBarConfig: Codable, Equatable, Sendable {
             normalizedApps.append(app)
         }
         for id in knownIDs where !seen.contains(id) {
-            let enabled = BuiltInCrawlApps.manifest(for: id)?.availability != .comingSoon
-            normalizedApps.append(CrawlBarAppConfig(id: id, enabled: enabled, showInMenuBar: enabled))
+            normalizedApps.append(CrawlBarAppConfig(id: id, enabled: true, showInMenuBar: true))
         }
         return CrawlBarConfig(
             version: Self.currentVersion,

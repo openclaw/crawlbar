@@ -24,11 +24,7 @@ struct CrawlBarAppDetailView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             self.header
-            if self.isComingSoon {
-                self.comingSoonContent
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    .padding(.top, 6)
-            } else if self.isMissingBinary {
+            if self.isMissingBinary {
                 self.notInstalledContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(.top, 6)
@@ -137,7 +133,6 @@ struct CrawlBarAppDetailView: View {
     }
 
     var effectiveState: CrawlAppState {
-        if self.isComingSoon { return .disabled }
         if !self.app.enabled { return .disabled }
         if self.installation?.binaryPath == nil { return .needsConfig }
         let state = self.status?.state ?? .unknown
@@ -149,8 +144,6 @@ struct CrawlBarAppDetailView: View {
 
     var statusFallback: String {
         switch self.effectiveState {
-        case .disabled where self.isComingSoon:
-            "Coming soon"
         case .needsConfig:
             "\(self.manifest?.binary.name ?? self.app.id.rawValue) is not on PATH"
         case .disabled:
@@ -161,7 +154,6 @@ struct CrawlBarAppDetailView: View {
     }
 
     var binarySummary: String {
-        if self.isComingSoon { return "Coming soon" }
         return self.installation?.binaryPath == nil ? "Missing" : "Found"
     }
 

@@ -48,7 +48,6 @@ enum CrawlBarCrawlerClassifier {
         -> [CrawlAppInstallation]
     {
         installations.filter { installation in
-            guard installation.manifest.availability == .available else { return false }
             guard let config = appConfigsByID[installation.id], config.enabled else { return false }
             return self.isMyCrawler(app: config, installation: installation)
         }

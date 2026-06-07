@@ -68,7 +68,6 @@ struct CrawlBarMenuHeaderView: View {
     }
 
     private func effectiveState(for installation: CrawlAppInstallation, status: CrawlAppStatus?) -> CrawlAppState {
-        if installation.manifest.availability == .comingSoon { return .disabled }
         if !installation.enabled { return .disabled }
         if installation.binaryPath == nil { return .needsConfig }
         let state = status?.state ?? .unknown
@@ -205,7 +204,6 @@ struct CrawlBarMenuCardView: View {
     }
 
     private var effectiveState: CrawlAppState {
-        if self.installation.manifest.availability == .comingSoon { return .disabled }
         if !self.installation.enabled { return .disabled }
         if self.installation.binaryPath == nil { return .needsConfig }
         let state = self.status?.state ?? .unknown

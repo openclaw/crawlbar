@@ -24,7 +24,6 @@ struct CLIApp: Encodable {
     var displayName: String
     var enabled: Bool
     var available: Bool
-    var availability: CrawlAppManifest.Availability
     var binaryPath: String?
     var configPath: String?
 
@@ -33,7 +32,6 @@ struct CLIApp: Encodable {
         self.displayName = installation.manifest.displayName
         self.enabled = installation.enabled
         self.available = installation.binaryPath != nil
-        self.availability = installation.manifest.availability
         self.binaryPath = installation.binaryPath
         self.configPath = installation.configPathOverride
     }
@@ -43,7 +41,6 @@ struct CLIApp: Encodable {
         case displayName = "display_name"
         case enabled
         case available
-        case availability
         case binaryPath = "binary_path"
         case configPath = "config_path"
     }

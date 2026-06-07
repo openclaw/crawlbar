@@ -68,7 +68,7 @@ enum CrawlBarCLI {
             return
         }
         for app in apps {
-            let marker = app.availability == .comingSoon ? "soon" : (app.enabled ? (app.available ? "ok" : "missing") : "disabled")
+            let marker = app.enabled ? (app.available ? "ok" : "missing") : "disabled"
             print("\(marker)\t\(app.id)\t\(app.displayName)")
         }
     }
@@ -183,9 +183,6 @@ enum CrawlBarCLI {
         guard let installation = try registry.installationForStatus(for: appID) else {
             throw CLIError.usage("unknown app: \(appID.rawValue)")
         }
-        guard installation.manifest.availability == .available else {
-            throw CLIError.usage("\(installation.manifest.displayName) is coming soon")
-        }
         let result = try installer.install(installation)
         _ = try? CrawlActionLogStore().save(result)
         if json {
@@ -206,9 +203,6 @@ enum CrawlBarCLI {
         if !isAllApps, let appID = options.appID {
             guard let installation = try registry.installation(for: appID, includeSecrets: false) else {
                 throw CLIError.usage("unknown app: \(appID.rawValue)")
-            }
-            guard installation.manifest.availability == .available else {
-                throw CLIError.usage("\(installation.manifest.displayName) is coming soon")
             }
             guard installation.enabled else {
                 throw CLIError.usage("\(appID.rawValue) is disabled")

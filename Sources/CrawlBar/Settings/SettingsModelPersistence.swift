@@ -122,8 +122,8 @@ extension CrawlBarSettingsModel {
         let apps = loadedInstallations.map { installation in
             let appConfig = appConfigsByID[installation.id] ?? CrawlBarAppConfig(
                 id: installation.id,
-                enabled: installation.manifest.availability == .available,
-                showInMenuBar: installation.manifest.availability == .available)
+                enabled: true,
+                showInMenuBar: true)
             guard let manifest = manifests[appConfig.id] else { return appConfig }
             var copy = appConfig
             copy.configValues = nativeConfigStore.resolvedConfigValues(
@@ -167,7 +167,6 @@ extension CrawlBarSettingsModel {
 
     nonisolated static func sidebarRank(installation: CrawlAppInstallation?) -> Int {
         guard let installation else { return 4 }
-        if installation.manifest.availability == .comingSoon { return 3 }
         if installation.binaryPath != nil { return 0 }
         if installation.manifest.install != nil { return 1 }
         return 2

@@ -254,7 +254,6 @@ extension CrawlBarAppDetailView {
     }
 
     func commandAvailable(_ action: String) -> Bool {
-        guard self.manifest?.availability == .available else { return false }
         return self.manifest?.commands[action] != nil && self.installation?.binaryPath != nil && self.app.enabled
     }
 

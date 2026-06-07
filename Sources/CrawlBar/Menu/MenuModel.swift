@@ -41,7 +41,6 @@ final class CrawlBarMenuModel: NSObject {
 
     var myMenuInstallations: [CrawlAppInstallation] {
         self.installations.filter { installation in
-            guard installation.manifest.availability == .available else { return false }
             guard let config = self.appConfigs[installation.id] else { return false }
             guard config.enabled, config.showInMenuBar else { return false }
             return CrawlBarCrawlerClassifier.isMyCrawler(app: config, installation: installation)
@@ -50,7 +49,6 @@ final class CrawlBarMenuModel: NSObject {
 
     var suggestedMenuInstallations: [CrawlAppInstallation] {
         self.installations.filter { installation in
-            guard installation.manifest.availability == .available else { return false }
             guard let config = self.appConfigs[installation.id] else { return false }
             guard config.enabled, config.showInMenuBar else { return false }
             return CrawlBarCrawlerClassifier.category(app: config, installation: installation) == .suggested

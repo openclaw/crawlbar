@@ -38,9 +38,6 @@ public struct CrawlStatusService: @unchecked Sendable {
     }
 
     public func immediateStatus(for installation: CrawlAppInstallation) -> CrawlAppStatus? {
-        guard installation.manifest.availability == .available else {
-            return CrawlAppStatus(appID: installation.id, state: .disabled, summary: "Coming soon")
-        }
         guard installation.enabled else {
             return CrawlAppStatus(appID: installation.id, state: .disabled, summary: "Disabled in CrawlBar config")
         }

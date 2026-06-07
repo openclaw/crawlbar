@@ -23,34 +23,14 @@ extension CrawlBarAppDetailView {
             .frame(minWidth: 0, alignment: .leading)
             Spacer()
             HStack(spacing: 6) {
-                if !self.isComingSoon {
-                    Button(action: self.refreshStatus) {
-                        Image(systemName: self.isRefreshing ? "hourglass" : "arrow.clockwise")
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Refresh status")
+                Button(action: self.refreshStatus) {
+                    Image(systemName: self.isRefreshing ? "hourglass" : "arrow.clockwise")
                 }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Refresh status")
             }
             .controlSize(.small)
         }
-    }
-
-    var comingSoonContent: some View {
-        VStack(spacing: 12) {
-            Spacer(minLength: 44)
-            CrawlBarBrandIcon(manifest: self.manifest, appID: self.app.id)
-                .frame(width: 72, height: 72)
-            Text("\(self.manifest?.displayName ?? "This crawler") has not shipped yet")
-                .font(.title3.weight(.semibold))
-                .multilineTextAlignment(.center)
-            Text("CrawlBar will let you know when it is ready.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 320)
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
     var notInstalledContent: some View {
@@ -92,12 +72,8 @@ extension CrawlBarAppDetailView {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
-    var isComingSoon: Bool {
-        self.manifest?.availability == .comingSoon
-    }
-
     var isMissingBinary: Bool {
-        self.manifest?.availability == .available && self.installation?.binaryPath == nil
+        self.installation?.binaryPath == nil
     }
 
     private var notInstalledTitle: String {
