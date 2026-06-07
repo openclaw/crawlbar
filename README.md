@@ -51,6 +51,9 @@ crawlbar action cloud-publish --app discrawl [--json]
 crawlbar action remote-status --app gitcrawl [--json]
 crawlbar logs [--json]
 crawlbar config path|validate|init
+crawlbar dev register --app gitcrawl --binary /path/to/gitcrawl [--json]
+crawlbar dev unregister --app gitcrawl [--json]
+crawlbar dev list [--json]
 ```
 
 During development the SwiftPM product is `crawlbarctl` to avoid colliding with

@@ -54,6 +54,8 @@ enum CrawlBarCLI {
             try Self.runAction(action, registry: registry, runner: runner, json: options.json, appID: options.requiredAppID())
         case "config":
             try Self.runConfig(options, registry: registry)
+        case "dev":
+            try Self.runDev(options, registry: registry)
         case "help", "--help", "-h":
             Self.printHelp()
         default:
@@ -347,6 +349,9 @@ enum CrawlBarCLI {
           config path|validate|init
           config get --app <id> [--key <id>] [--json] [--reveal]
           config set --app <id> --key <id> --value <value> [--json]
+          dev register --app <id> --binary <path> [--json]
+          dev unregister --app <id> [--json]
+          dev list [--json]
         """)
     }
 }
