@@ -1,5 +1,3 @@
-import Foundation
-
 public extension CrawlAppManifest {
     enum InstallMethod: String, Codable, Equatable, Sendable {
         case homebrew
@@ -23,12 +21,12 @@ package extension CrawlAppManifest {
         return manifest
     }
 
-    enum SuggestionKind: String, Codable, Equatable, Sendable {
+    enum SuggestionKind: Equatable, Sendable {
         case always
         case app
     }
 
-    struct Suggestion: Codable, Equatable, Sendable {
+    struct Suggestion: Equatable, Sendable {
         package var kind: SuggestionKind
         package var name: String
         package var bundleIDs: [String]
@@ -37,12 +35,6 @@ package extension CrawlAppManifest {
             self.kind = kind
             self.name = name
             self.bundleIDs = bundleIDs
-        }
-
-        private enum CodingKeys: String, CodingKey {
-            case kind
-            case name
-            case bundleIDs = "bundle_ids"
         }
     }
 }
