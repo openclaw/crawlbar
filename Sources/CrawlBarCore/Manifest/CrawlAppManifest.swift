@@ -17,7 +17,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
     public var configOptions: [CrawlAppManifest.ConfigOption]
     public var configSections: [CrawlAppManifest.ConfigSection]
     public var install: CrawlAppManifest.Install?
-    package var suggestion: CrawlAppManifest.Suggestion?
+    package var suggestion: CrawlAppManifest.Suggestion? = nil
 
     public init(
         schemaVersion: Int = 1,
@@ -53,7 +53,6 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         self.configOptions = configOptions
         self.configSections = configSections
         self.install = install
-        self.suggestion = nil
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -73,7 +72,6 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         case configOptions = "config_options"
         case configSections = "config_sections"
         case install
-        case suggestion
     }
 
     public init(from decoder: Decoder) throws {
@@ -94,7 +92,6 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         self.configOptions = try container.decodeIfPresent([CrawlAppManifest.ConfigOption].self, forKey: .configOptions) ?? []
         self.configSections = try container.decodeIfPresent([CrawlAppManifest.ConfigSection].self, forKey: .configSections) ?? []
         self.install = try container.decodeIfPresent(CrawlAppManifest.Install.self, forKey: .install)
-        self.suggestion = try container.decodeIfPresent(CrawlAppManifest.Suggestion.self, forKey: .suggestion)
     }
 
     public var needsSecretsForStatus: Bool {
