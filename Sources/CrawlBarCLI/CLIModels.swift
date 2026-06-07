@@ -49,6 +49,7 @@ struct CLIApp: Encodable {
 struct CLIOptions {
     var json = false
     var appID: CrawlAppID?
+    var binary: String?
     var key: String?
     var value: String?
     var revealSecrets = false
@@ -65,6 +66,8 @@ struct CLIOptions {
                 if let value = iterator.next() {
                     self.appID = CrawlAppID(rawValue: value)
                 }
+            case "--binary":
+                self.binary = iterator.next()
             case "--key":
                 self.key = iterator.next()
             case "--value":
