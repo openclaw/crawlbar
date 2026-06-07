@@ -115,3 +115,14 @@ struct CrawlBarRemoteStoreSummary {
         return formatter.localizedString(for: lastIngestAt, relativeTo: Date())
     }
 }
+
+extension CrawlBarAppDetailView {
+    var installButtonTitle: String {
+        switch self.manifest?.install?.method {
+        case .homebrew:
+            "Install with Homebrew"
+        case nil:
+            "Install"
+        }
+    }
+}

@@ -136,7 +136,7 @@ struct CrawlBarSidebarRow: View {
         else {
             return "Not installed on this computer"
         }
-        return "\(suggestion.name) is not installed"
+        return "No \(suggestion.name) app found"
     }
 
     private var suggestedSubtitle: String {

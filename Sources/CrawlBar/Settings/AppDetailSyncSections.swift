@@ -58,7 +58,7 @@ extension CrawlBarAppDetailView {
                     Button {
                         self.installApp()
                     } label: {
-                        Label("Install", systemImage: "square.and.arrow.down")
+                        Label(self.installButtonTitle, systemImage: "square.and.arrow.down")
                     }
                 }
                 if self.commandAvailable(self.app.preferredRefreshAction ?? "refresh") {

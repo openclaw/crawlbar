@@ -3,49 +3,26 @@ import SwiftUI
 
 struct CrawlBarSettingsView: View {
     @ObservedObject var model: CrawlBarSettingsModel
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var isSidebarVisible = true
 
     var body: some View {
-        NavigationSplitView(columnVisibility: self.animatedColumnVisibility) {
-            List(selection: self.sidebarSelection) {
-                Section("CrawlBar") {
-                    CrawlBarGeneralSidebarRow(isSelected: self.model.selectedSidebarItem == .general)
-                        .tag(CrawlBarSettingsSidebarItem.general as CrawlBarSettingsSidebarItem?)
-                        .contentShape(Rectangle())
-                        .listRowBackground(CrawlBarSidebarSelectionBackground(isSelected: self.model.selectedSidebarItem == .general))
-                        .onTapGesture {
-                            self.model.selectedSidebarItem = .general
-                        }
-                }
-                ForEach(self.model.crawlerSections) { section in
-                    Section {
-                        ForEach(section.apps) { app in
-                            let item = CrawlBarSettingsSidebarItem.crawler(app.id)
-                            CrawlBarSidebarRow(
-                                app: app,
-                                section: section.kind,
-                                manifest: self.model.installations[app.id]?.manifest,
-                                status: self.model.statuses[app.id],
-                                binaryPath: self.model.installations[app.id]?.binaryPath,
-                                isSelected: self.model.selectedSidebarItem == item)
-                                .tag(item as CrawlBarSettingsSidebarItem?)
-                                .contentShape(Rectangle())
-                                .listRowBackground(CrawlBarSidebarSelectionBackground(isSelected: self.model.selectedSidebarItem == item))
-                                .onTapGesture {
-                                    self.model.selectedSidebarItem = item
-                                }
-                        }
-                    } header: {
-                        CrawlBarSidebarSectionHeader(title: section.kind.title)
-                    }
-                }
+        HStack(spacing: 0) {
+            if self.isSidebarVisible {
+                self.sidebar
+                    .frame(width: CrawlBarSettingsLayout.sidebarWidth)
             }
-            .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(CrawlBarSettingsLayout.sidebarWidth)
-        } detail: {
             self.detailContainer
         }
-        .navigationSplitViewStyle(.balanced)
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button {
+                    self.isSidebarVisible.toggle()
+                } label: {
+                    Label(self.sidebarToggleTitle, systemImage: "sidebar.left")
+                }
+                .help(self.sidebarToggleTitle)
+            }
+        }
         .frame(
             minWidth: CrawlBarSettingsLayout.minWindowWidth,
             maxWidth: .infinity,
@@ -55,23 +32,49 @@ struct CrawlBarSettingsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private var sidebarSelection: Binding<CrawlBarSettingsSidebarItem?> {
-        Binding(
-            get: { self.model.selectedSidebarItem },
-            set: { item in
-                guard let item else { return }
-                self.model.selectedSidebarItem = item
-            })
+    private var sidebar: some View {
+        List {
+            Section("CrawlBar") {
+                Button {
+                    self.model.selectedSidebarItem = .general
+                } label: {
+                    CrawlBarGeneralSidebarRow(isSelected: self.model.selectedSidebarItem == .general)
+                }
+                .buttonStyle(.plain)
+                .contentShape(Rectangle())
+                .listRowBackground(CrawlBarSidebarSelectionBackground(isSelected: self.model.selectedSidebarItem == .general))
+                .accessibilityAddTraits(self.model.selectedSidebarItem == .general ? .isSelected : [])
+            }
+            ForEach(self.model.crawlerSections) { section in
+                Section {
+                    ForEach(section.apps) { app in
+                        let item = CrawlBarSettingsSidebarItem.crawler(app.id)
+                        Button {
+                            self.model.selectedSidebarItem = item
+                        } label: {
+                            CrawlBarSidebarRow(
+                                app: app,
+                                section: section.kind,
+                                manifest: self.model.installations[app.id]?.manifest,
+                                status: self.model.statuses[app.id],
+                                binaryPath: self.model.installations[app.id]?.binaryPath,
+                                isSelected: self.model.selectedSidebarItem == item)
+                        }
+                        .buttonStyle(.plain)
+                        .contentShape(Rectangle())
+                        .listRowBackground(CrawlBarSidebarSelectionBackground(isSelected: self.model.selectedSidebarItem == item))
+                        .accessibilityAddTraits(self.model.selectedSidebarItem == item ? .isSelected : [])
+                    }
+                } header: {
+                    CrawlBarSidebarSectionHeader(title: section.kind.title)
+                }
+            }
+        }
+        .listStyle(.sidebar)
     }
 
-    private var animatedColumnVisibility: Binding<NavigationSplitViewVisibility> {
-        Binding(
-            get: { self.columnVisibility },
-            set: { visibility in
-                withAnimation(.easeInOut(duration: 0.22)) {
-                    self.columnVisibility = visibility
-                }
-            })
+    private var sidebarToggleTitle: String {
+        self.isSidebarVisible ? "Hide Sidebar" : "Show Sidebar"
     }
 
     @ViewBuilder
