@@ -160,6 +160,13 @@ extension CrawlBarSelfTest {
         try Self.expect(BuiltInCrawlApps.telecrawl.install?.package == "steipete/tap/telecrawl", "telecrawl install metadata exists")
         try Self.expect(BuiltInCrawlApps.telecrawl.paths.defaultConfig == "~/.telecrawl/backup.json", "telecrawl config path maps")
         try Self.expect(BuiltInCrawlApps.graincrawl.availability == .available, "graincrawl is available")
+        try Self.expect(BuiltInCrawlApps.imsgcrawl.displayName == "iMessage", "imsgcrawl uses user-facing iMessage name")
+        try Self.expect(BuiltInCrawlApps.imsgcrawl.commands["status"] == ["--json", "status"], "imsgcrawl uses crawlkit status command")
+        try Self.expect(BuiltInCrawlApps.imsgcrawl.commands["refresh"] == ["--json", "sync"], "imsgcrawl sync is wired as refresh")
+        try Self.expect(BuiltInCrawlApps.imsgcrawl.commands["contact-export"] == ["--json", "contacts", "export"], "imsgcrawl contact export is wired")
+        try Self.expect(BuiltInCrawlApps.imsgcrawl.privacy.containsPrivateMessages, "imsgcrawl privacy metadata flags iMessage data")
+        try Self.expect(BuiltInCrawlApps.imsgcrawl.branding.bundleIdentifier == "com.apple.MobileSMS", "imsgcrawl uses native Messages app icon")
+        try Self.expect(BuiltInCrawlApps.imsgcrawl.suggestion?.name == "Messages", "imsgcrawl suggests from the native Messages app")
         try Self.expect(BuiltInCrawlApps.graincrawl.commands["status"] == ["status", "--json"], "graincrawl uses crawlkit status command")
         try Self.expect(
             BuiltInCrawlApps.graincrawl.commands["refresh"] == ["sync", "--json"],
