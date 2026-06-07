@@ -17,6 +17,12 @@ public extension CrawlAppManifest {
 }
 
 package extension CrawlAppManifest {
+    func withSuggestion(_ suggestion: Suggestion) -> Self {
+        var manifest = self
+        manifest.suggestion = suggestion
+        return manifest
+    }
+
     enum SuggestionKind: String, Codable, Equatable, Sendable {
         case always
         case app

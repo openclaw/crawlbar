@@ -37,45 +37,6 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         configSections: [CrawlAppManifest.ConfigSection] = [],
         install: CrawlAppManifest.Install? = nil)
     {
-        self.init(
-            schemaVersion: schemaVersion,
-            id: id,
-            displayName: displayName,
-            description: description,
-            availability: availability,
-            binary: binary,
-            execution: execution,
-            branding: branding,
-            paths: paths,
-            commands: commands,
-            capabilities: capabilities,
-            statusRequiresSecrets: statusRequiresSecrets,
-            privacy: privacy,
-            configOptions: configOptions,
-            configSections: configSections,
-            install: install,
-            suggestion: nil)
-    }
-
-    package init(
-        schemaVersion: Int = 1,
-        id: CrawlAppID,
-        displayName: String,
-        description: String,
-        availability: CrawlAppManifest.Availability = .available,
-        binary: CrawlAppManifest.Binary,
-        execution: CrawlAppManifest.Execution? = nil,
-        branding: CrawlAppManifest.Branding,
-        paths: CrawlAppManifest.Paths,
-        commands: [String: [String]],
-        capabilities: [CrawlAppCapability],
-        statusRequiresSecrets: Bool? = nil,
-        privacy: CrawlAppManifest.Privacy = CrawlAppManifest.Privacy(),
-        configOptions: [CrawlAppManifest.ConfigOption] = [],
-        configSections: [CrawlAppManifest.ConfigSection] = [],
-        install: CrawlAppManifest.Install? = nil,
-        suggestion: CrawlAppManifest.Suggestion? = nil)
-    {
         self.schemaVersion = schemaVersion
         self.id = id
         self.displayName = displayName
@@ -92,7 +53,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         self.configOptions = configOptions
         self.configSections = configSections
         self.install = install
-        self.suggestion = suggestion
+        self.suggestion = nil
     }
 
     private enum CodingKeys: String, CodingKey {
