@@ -7,7 +7,8 @@ enum CrawlBarApp {
         let app = NSApplication.shared
         let delegate = CrawlBarAppDelegate()
         app.delegate = delegate
-        app.setActivationPolicy(.regular)
+        // Launch as a menu-bar app; Settings switches to regular activation while its window is open.
+        app.setActivationPolicy(.accessory)
         app.run()
     }
 }
