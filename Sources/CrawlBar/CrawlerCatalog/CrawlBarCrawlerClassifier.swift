@@ -1,12 +1,10 @@
 import CrawlBarCore
 import Foundation
 
-enum CrawlBarCrawlerCategory: CaseIterable, Hashable, Identifiable {
+enum CrawlBarCrawlerCategory: CaseIterable, Hashable {
     case my
     case suggested
     case more
-
-    var id: Self { self }
 
     var title: String {
         switch self {

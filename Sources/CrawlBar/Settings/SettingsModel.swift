@@ -70,7 +70,7 @@ final class CrawlBarSettingsModel: NSObject, ObservableObject {
         var grouped: [CrawlBarCrawlerCategory: [CrawlBarAppConfig]] = [:]
         for app in self.apps {
             let installation = self.installations[app.id]
-            let section = self.listSection(for: app, installation: installation)
+            let section = CrawlBarCrawlerClassifier.category(app: app, installation: installation)
             grouped[section, default: []].append(app)
         }
         return CrawlBarCrawlerCategory.allCases.compactMap { section in
@@ -90,11 +90,4 @@ final class CrawlBarSettingsModel: NSObject, ObservableObject {
         }
     }
 
-    func listSection(
-        for app: CrawlBarAppConfig,
-        installation: CrawlAppInstallation?)
-        -> CrawlBarCrawlerCategory
-    {
-        CrawlBarCrawlerClassifier.category(app: app, installation: installation)
-    }
 }

@@ -42,6 +42,6 @@ public extension BuiltInCrawlApps {
             .init(id: "remote", title: "Remote Host", optionIDs: ["remote_target", "remote_run_as"]),
             .init(id: "whatsapp", title: "WhatsApp Account", optionIDs: ["account"]),
         ],
-        install: .init(method: .homebrew, package: "openclaw/tap/wacli"),
-        suggestion: Self.appSuggest("WhatsApp", ["net.whatsapp.WhatsApp"]))
+        install: .init(method: .homebrew, package: "openclaw/tap/wacli"))
+        .withSuggestion(Self.appSuggest("WhatsApp", ["net.whatsapp.WhatsApp"]))
 }
