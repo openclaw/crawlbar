@@ -67,7 +67,7 @@ products="$(
       in_products && /^        Library:/ { print name ":library"; next }
       in_products && /^        Executable:/ { print name ":executable"; next }
     ' \
-    | paste -sd,
+    | paste -sd, -
 )"
 echo "products=${products}"
 (rg -n '^public ' Sources/CrawlBarCore || true) | wc -l | awk '{ print "raw_public_lines=" $1 }'
