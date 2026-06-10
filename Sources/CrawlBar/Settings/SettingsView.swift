@@ -3,26 +3,18 @@ import SwiftUI
 
 struct CrawlBarSettingsView: View {
     @ObservedObject var model: CrawlBarSettingsModel
-    @State private var isSidebarVisible = true
 
     var body: some View {
-        HStack(spacing: 0) {
-            if self.isSidebarVisible {
-                self.sidebar
-                    .frame(width: CrawlBarSettingsLayout.sidebarWidth)
-            }
-            self.detailContainer
+        NavigationSplitView {
+            CrawlBarSettingsSidebar(model: self.model)
+                .navigationSplitViewColumnWidth(
+                    min: CrawlBarSettingsLayout.sidebarMinWidth,
+                    ideal: CrawlBarSettingsLayout.sidebarIdealWidth,
+                    max: CrawlBarSettingsLayout.sidebarMaxWidth)
+        } detail: {
+            CrawlBarSettingsDetail(model: self.model)
         }
-        .toolbar {
-            ToolbarItem(placement: .navigation) {
-                Button {
-                    self.isSidebarVisible.toggle()
-                } label: {
-                    Label(self.sidebarToggleTitle, systemImage: "sidebar.left")
-                }
-                .help(self.sidebarToggleTitle)
-            }
-        }
+        .navigationSplitViewStyle(.balanced)
         .frame(
             minWidth: CrawlBarSettingsLayout.minWindowWidth,
             maxWidth: .infinity,
@@ -31,69 +23,13 @@ struct CrawlBarSettingsView: View {
             alignment: .topLeading)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
+}
 
-    private var sidebar: some View {
-        List {
-            Section("CrawlBar") {
-                Button {
-                    self.model.selectedSidebarItem = .general
-                } label: {
-                    CrawlBarSettingsNavSidebarRow(
-                        title: "General",
-                        systemImage: "gearshape",
-                        isSelected: self.model.selectedSidebarItem == .general)
-                }
-                .buttonStyle(.plain)
-                .contentShape(Rectangle())
-                .listRowBackground(CrawlBarSidebarSelectionBackground(isSelected: self.model.selectedSidebarItem == .general))
-                .accessibilityAddTraits(self.model.selectedSidebarItem == .general ? .isSelected : [])
-                Button {
-                    self.model.selectedSidebarItem = .permissions
-                } label: {
-                    CrawlBarSettingsNavSidebarRow(
-                        title: "Permissions",
-                        systemImage: "hand.raised",
-                        isSelected: self.model.selectedSidebarItem == .permissions)
-                }
-                .buttonStyle(.plain)
-                .contentShape(Rectangle())
-                .listRowBackground(CrawlBarSidebarSelectionBackground(isSelected: self.model.selectedSidebarItem == .permissions))
-                .accessibilityAddTraits(self.model.selectedSidebarItem == .permissions ? .isSelected : [])
-            }
-            ForEach(self.model.crawlerSections) { section in
-                Section {
-                    ForEach(section.apps) { app in
-                        let item = CrawlBarSettingsSidebarItem.crawler(app.id)
-                        Button {
-                            self.model.selectedSidebarItem = item
-                        } label: {
-                            CrawlBarSidebarRow(
-                                app: app,
-                                section: section.kind,
-                                manifest: self.model.installations[app.id]?.manifest,
-                                status: self.model.statuses[app.id],
-                                binaryPath: self.model.installations[app.id]?.binaryPath,
-                                isSelected: self.model.selectedSidebarItem == item)
-                        }
-                        .buttonStyle(.plain)
-                        .contentShape(Rectangle())
-                        .listRowBackground(CrawlBarSidebarSelectionBackground(isSelected: self.model.selectedSidebarItem == item))
-                        .accessibilityAddTraits(self.model.selectedSidebarItem == item ? .isSelected : [])
-                    }
-                } header: {
-                    CrawlBarSidebarSectionHeader(title: section.kind.title)
-                }
-            }
-        }
-        .listStyle(.sidebar)
-    }
-
-    private var sidebarToggleTitle: String {
-        self.isSidebarVisible ? "Hide Sidebar" : "Show Sidebar"
-    }
+struct CrawlBarSettingsDetail: View {
+    @ObservedObject var model: CrawlBarSettingsModel
 
     @ViewBuilder
-    private var detailContainer: some View {
+    var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let error = self.model.lastError {
                 CrawlBarIssueBanner(message: error, state: .error)

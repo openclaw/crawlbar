@@ -14,45 +14,32 @@ struct CrawlBarCrawlerSection: Identifiable {
     var id: CrawlBarCrawlerCategory { self.kind }
 }
 
-struct CrawlBarSettingsNavSidebarRow: View {
-    let title: String
-    let systemImage: String
-    let isSelected: Bool
+struct CrawlBarSettingsSidebar: View {
+    @ObservedObject var model: CrawlBarSettingsModel
 
     var body: some View {
-        Label(self.title, systemImage: self.systemImage)
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(self.isSelected ? Color.white : Color.primary)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-struct CrawlBarSidebarSelectionBackground: View {
-    let isSelected: Bool
-
-    var body: some View {
-        if self.isSelected {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(Color.accentColor.opacity(0.82))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-        } else {
-            Color.clear
+        List(selection: self.$model.selectedSidebarItem) {
+            Section("CrawlBar") {
+                Label("General", systemImage: "gearshape")
+                    .tag(CrawlBarSettingsSidebarItem.general)
+                Label("Permissions", systemImage: "hand.raised")
+                    .tag(CrawlBarSettingsSidebarItem.permissions)
+            }
+            ForEach(self.model.crawlerSections) { section in
+                Section(section.kind.title) {
+                    ForEach(section.apps) { app in
+                        CrawlBarSidebarRow(
+                            app: app,
+                            section: section.kind,
+                            manifest: self.model.installations[app.id]?.manifest,
+                            status: self.model.statuses[app.id],
+                            binaryPath: self.model.installations[app.id]?.binaryPath)
+                            .tag(CrawlBarSettingsSidebarItem.crawler(app.id))
+                    }
+                }
+            }
         }
-    }
-}
-
-struct CrawlBarSidebarSectionHeader: View {
-    let title: String
-
-    var body: some View {
-        Text(self.title)
-            .font(.system(size: 13, weight: .bold))
-            .foregroundStyle(.secondary)
-            .textCase(nil)
-            .padding(.top, 8)
+        .listStyle(.sidebar)
     }
 }
 
@@ -62,7 +49,6 @@ struct CrawlBarSidebarRow: View {
     let manifest: CrawlAppManifest?
     let status: CrawlAppStatus?
     let binaryPath: String?
-    let isSelected: Bool
 
     var body: some View {
         HStack(spacing: 11) {
@@ -72,7 +58,7 @@ struct CrawlBarSidebarRow: View {
                 HStack(spacing: 6) {
                     Text(CrawlBarCrawlerTitle.text(for: self.app.id, manifest: self.manifest))
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(self.isSelected ? Color.white : Color.primary)
+                        .foregroundStyle(.primary)
                         .lineLimit(1)
                     CrawlBarStatusDot(state: self.rowState)
                 }
@@ -162,7 +148,6 @@ struct CrawlBarSidebarRow: View {
     }
 
     private var subtitleColor: Color {
-        if self.isSelected { return Color.white.opacity(0.78) }
         if self.section != .my { return Color.secondary }
         switch self.rowState {
         case .needsConfig, .needsAuth, .error:
