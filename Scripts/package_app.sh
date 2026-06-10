@@ -8,6 +8,7 @@ CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 HELPERS_DIR="$CONTENTS_DIR/Helpers"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
+MINIMUM_SYSTEM_VERSION="26.0"
 
 cd "$ROOT_DIR"
 swift build -c release --product CrawlBar
@@ -31,7 +32,7 @@ else
 fi
 Scripts/generate_app_icon.swift "$RESOURCES_DIR/CrawlBar.icns"
 
-cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
+cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -51,7 +52,7 @@ cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
   <key>CFBundleVersion</key>
   <string>1</string>
   <key>LSMinimumSystemVersion</key>
-  <string>14.0</string>
+  <string>${MINIMUM_SYSTEM_VERSION}</string>
   <key>LSUIElement</key>
   <true/>
   <key>NSPrincipalClass</key>
