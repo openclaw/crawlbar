@@ -38,12 +38,27 @@ struct CrawlBarSettingsView: View {
                 Button {
                     self.model.selectedSidebarItem = .general
                 } label: {
-                    CrawlBarGeneralSidebarRow(isSelected: self.model.selectedSidebarItem == .general)
+                    CrawlBarSettingsNavSidebarRow(
+                        title: "General",
+                        systemImage: "gearshape",
+                        isSelected: self.model.selectedSidebarItem == .general)
                 }
                 .buttonStyle(.plain)
                 .contentShape(Rectangle())
                 .listRowBackground(CrawlBarSidebarSelectionBackground(isSelected: self.model.selectedSidebarItem == .general))
                 .accessibilityAddTraits(self.model.selectedSidebarItem == .general ? .isSelected : [])
+                Button {
+                    self.model.selectedSidebarItem = .permissions
+                } label: {
+                    CrawlBarSettingsNavSidebarRow(
+                        title: "Permissions",
+                        systemImage: "hand.raised",
+                        isSelected: self.model.selectedSidebarItem == .permissions)
+                }
+                .buttonStyle(.plain)
+                .contentShape(Rectangle())
+                .listRowBackground(CrawlBarSidebarSelectionBackground(isSelected: self.model.selectedSidebarItem == .permissions))
+                .accessibilityAddTraits(self.model.selectedSidebarItem == .permissions ? .isSelected : [])
             }
             ForEach(self.model.crawlerSections) { section in
                 Section {
@@ -101,6 +116,8 @@ struct CrawlBarSettingsView: View {
             switch self.model.selectedSidebarItem {
             case .general:
                 CrawlBarGeneralSettingsView(model: self.model)
+            case .permissions:
+                CrawlBarPermissionsSettingsView(model: self.model)
             case .crawler(let selectedID):
                 if self.model.apps.contains(where: { $0.id == selectedID })
                 {

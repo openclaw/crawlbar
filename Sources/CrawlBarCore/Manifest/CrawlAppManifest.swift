@@ -13,6 +13,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
     public var capabilities: [CrawlAppCapability]
     public var statusRequiresSecrets: Bool?
     public var privacy: CrawlAppManifest.Privacy
+    public var permissions: [CrawlAppManifest.Permission]
     public var configOptions: [CrawlAppManifest.ConfigOption]
     public var configSections: [CrawlAppManifest.ConfigSection]
     public var install: CrawlAppManifest.Install?
@@ -31,6 +32,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         capabilities: [CrawlAppCapability],
         statusRequiresSecrets: Bool? = nil,
         privacy: CrawlAppManifest.Privacy = CrawlAppManifest.Privacy(),
+        permissions: [CrawlAppManifest.Permission] = [],
         configOptions: [CrawlAppManifest.ConfigOption] = [],
         configSections: [CrawlAppManifest.ConfigSection] = [],
         install: CrawlAppManifest.Install? = nil)
@@ -47,6 +49,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         self.capabilities = capabilities
         self.statusRequiresSecrets = statusRequiresSecrets
         self.privacy = privacy
+        self.permissions = permissions
         self.configOptions = configOptions
         self.configSections = configSections
         self.install = install
@@ -65,6 +68,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         case capabilities
         case statusRequiresSecrets = "status_requires_secrets"
         case privacy
+        case permissions
         case configOptions = "config_options"
         case configSections = "config_sections"
         case install
@@ -84,6 +88,7 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         self.capabilities = Self.decodeCapabilities(from: container, commands: self.commands)
         self.statusRequiresSecrets = try container.decodeIfPresent(Bool.self, forKey: .statusRequiresSecrets)
         self.privacy = try container.decodeIfPresent(CrawlAppManifest.Privacy.self, forKey: .privacy) ?? CrawlAppManifest.Privacy()
+        self.permissions = try container.decodeIfPresent([CrawlAppManifest.Permission].self, forKey: .permissions) ?? []
         self.configOptions = try container.decodeIfPresent([CrawlAppManifest.ConfigOption].self, forKey: .configOptions) ?? []
         self.configSections = try container.decodeIfPresent([CrawlAppManifest.ConfigSection].self, forKey: .configSections) ?? []
         self.install = try container.decodeIfPresent(CrawlAppManifest.Install.self, forKey: .install)

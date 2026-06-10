@@ -2,13 +2,21 @@ import AppKit
 import CrawlBarCore
 import SwiftUI
 
+private enum CrawlBarStatusMetrics {
+    static let dotSize: CGFloat = 8
+    static let pillSpacing: CGFloat = 5
+    static let pillHorizontalPadding: CGFloat = 8
+    static let pillVerticalPadding: CGFloat = 4
+    static let pillBackgroundOpacity = 0.12
+}
+
 struct CrawlBarStatusDot: View {
     let state: CrawlAppState
 
     var body: some View {
         Circle()
             .fill(self.color)
-            .frame(width: 8, height: 8)
+            .frame(width: CrawlBarStatusMetrics.dotSize, height: CrawlBarStatusMetrics.dotSize)
             .accessibilityLabel(CrawlBarStatusLabel.text(for: self.state))
     }
 
@@ -30,16 +38,17 @@ struct CrawlBarStatusDot: View {
 
 struct CrawlBarStatusPill: View {
     let state: CrawlAppState
+    var label: String? = nil
 
     var body: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: CrawlBarStatusMetrics.pillSpacing) {
             CrawlBarStatusDot(state: self.state)
-            Text(CrawlBarStatusLabel.text(for: self.state))
+            Text(self.label ?? CrawlBarStatusLabel.text(for: self.state))
                 .font(.caption.weight(.medium))
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color(nsColor: .quaternaryLabelColor).opacity(0.12))
+        .padding(.horizontal, CrawlBarStatusMetrics.pillHorizontalPadding)
+        .padding(.vertical, CrawlBarStatusMetrics.pillVerticalPadding)
+        .background(Color(nsColor: .quaternaryLabelColor).opacity(CrawlBarStatusMetrics.pillBackgroundOpacity))
         .clipShape(Capsule())
     }
 }

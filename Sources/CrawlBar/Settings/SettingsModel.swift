@@ -81,7 +81,7 @@ final class CrawlBarSettingsModel: NSObject, ObservableObject {
 
     var sidebarSelectionIsValid: Bool {
         switch self.selectedSidebarItem {
-        case .general:
+        case .general, .permissions:
             true
         case .crawler(let id):
             self.apps.contains { $0.id == id }

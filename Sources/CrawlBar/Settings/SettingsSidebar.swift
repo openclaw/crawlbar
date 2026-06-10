@@ -3,6 +3,7 @@ import SwiftUI
 
 enum CrawlBarSettingsSidebarItem: Hashable {
     case general
+    case permissions
     case crawler(CrawlAppID)
 }
 
@@ -13,11 +14,13 @@ struct CrawlBarCrawlerSection: Identifiable {
     var id: CrawlBarCrawlerCategory { self.kind }
 }
 
-struct CrawlBarGeneralSidebarRow: View {
+struct CrawlBarSettingsNavSidebarRow: View {
+    let title: String
+    let systemImage: String
     let isSelected: Bool
 
     var body: some View {
-        Label("General", systemImage: "gearshape")
+        Label(self.title, systemImage: self.systemImage)
             .font(.system(size: 13, weight: .semibold))
             .foregroundStyle(self.isSelected ? Color.white : Color.primary)
             .padding(.horizontal, 7)

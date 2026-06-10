@@ -38,4 +38,11 @@ public enum BuiltInCrawlApps {
     static func appSuggest(_ name: String, _ bundleIDs: [String]) -> CrawlAppManifest.Suggestion {
         .init(kind: .app, name: name, bundleIDs: bundleIDs)
     }
+
+    static func fullDiskAccess(optional: Bool = false) -> CrawlAppManifest.Permission {
+        .init(
+            id: "full_disk_access",
+            label: "Full Disk Access",
+            optional: optional)
+    }
 }

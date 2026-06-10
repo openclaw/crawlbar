@@ -69,6 +69,30 @@ Prefer boring code with one obvious place for each responsibility.
 - Treat removal of user-visible functionality as a product decision, not a
   metrics cleanup.
 
+## UI Design System
+
+CrawlBar UI work must use a minimal native macOS design system instead of
+one-off view styling.
+
+- Check Apple HIG guidance and the relevant Build macOS Apps guidance before
+  adding or changing visible settings, menu, window, button, drag-and-drop, or
+  permission UI.
+- Keep shared UI primitives to about 8-12 total. Add a new shared primitive only
+  when it replaces repeated visual grammar or encodes a stable CrawlBar-wide
+  concept.
+- Do not create a new card, row, badge, button, callout, icon treatment, or
+  layout style for each feature. Feature views should compose existing settings
+  primitives such as panels, rows, facts, status views, and issue/help surfaces.
+- Do not scatter magic numbers through feature views. Put recurring spacing,
+  sizing, corner, and control metrics in the settings design tokens or reuse
+  native SwiftUI/AppKit control sizing.
+- Prefer native controls and system behavior. Custom UI must justify why
+  standard macOS components are insufficient and must preserve accessibility,
+  keyboard, pointer, and appearance behavior.
+- Before handoff, review the UI diff against `docs/ui-rules.md`, the HIG, and
+  the anti-slop/Ousterhout question: did this reduce concepts and visual
+  grammar, or only add another special case?
+
 ## Proof
 
 For changes touching app launch, packaging, menu behavior, settings behavior,

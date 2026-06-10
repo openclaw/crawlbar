@@ -3,7 +3,7 @@ import Foundation
 public extension BuiltInCrawlApps {
     static let imsgcrawl = CrawlAppManifest(
         id: Self.imsgcrawlID,
-        displayName: "iMessage Crawl",
+        displayName: "iMessage",
         description: "Local-first iMessage archive crawler",
         binary: .init(name: "imsgcrawl"),
         branding: .init(
@@ -34,6 +34,9 @@ public extension BuiltInCrawlApps {
                 "contact-handles",
                 "message-archive",
                 "message-text-search",
-            ]))
+            ]),
+        permissions: [
+            Self.fullDiskAccess(),
+        ])
         .withSuggestion(Self.appSuggest("Messages", ["com.apple.MobileSMS"]))
 }

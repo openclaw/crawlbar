@@ -72,7 +72,14 @@ also expose the same payload through `metadata --json`.
     "contains_private_messages": false,
     "exports_secrets": false,
     "local_only_scopes": []
-  }
+  },
+  "permissions": [
+    {
+      "id": "full_disk_access",
+      "label": "Full Disk Access",
+      "optional": false
+    }
+  ]
 }
 ```
 
@@ -112,6 +119,14 @@ Secrets must never be emitted by `metadata --json`, and config reads should
 redact them unless an explicit reveal flag is provided. Longer term, crawler
 CLIs should expose safe config read/write/clear commands so CrawlBar can stop
 editing TOML directly.
+
+`permissions` are app-level macOS grants or similar local runtime requirements
+that may be needed before CrawlBar can run a crawler successfully. Built-ins can
+declare them today; longer term, crawler `metadata --json` should self-declare
+the same shape. Keep the list practical and user-facing. For example, use
+`full_disk_access` when a crawler needs to read another app's local database or
+container. Do not use this field for API tokens, config fields, or privacy
+descriptions that do not require a system grant.
 
 ## Actions
 

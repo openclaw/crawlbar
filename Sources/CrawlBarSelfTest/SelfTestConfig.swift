@@ -65,7 +65,10 @@ extension CrawlBarSelfTest {
             branding: .init(symbolName: "square.grid.2x2", accentColor: "#123456"),
             paths: .init(defaultConfig: "~/.customcrawl/config.toml"),
             commands: ["status": ["status", "--json"]],
-            capabilities: [.status])
+            capabilities: [.status],
+            permissions: [
+                .init(id: "full_disk_access", label: "Full Disk Access"),
+            ])
         let data = try CrawlCoding.makeJSONEncoder().encode(manifest)
         try data.write(to: directory.appendingPathComponent("customcrawl.json"))
         try Data("""
@@ -84,7 +87,14 @@ extension CrawlBarSelfTest {
             "tap": {"title": "Desktop", "argv": ["objectcrawl", "tap", "--json"], "json": true, "mutates": true}
           },
           "capabilities": ["metadata", "status", "sync", "tap", "git-share"],
-          "privacy": {"exports_secrets": false}
+          "privacy": {"exports_secrets": false},
+          "permissions": [
+            {
+              "id": "full_disk_access",
+              "label": "Full Disk Access",
+              "optional": true
+            }
+          ]
         }
         """.utf8).write(to: directory.appendingPathComponent("objectcrawl.json"))
         try Data("""
@@ -123,6 +133,9 @@ extension CrawlBarSelfTest {
         try Self.expect(objectManifest.capabilities.contains(.search), "crawlkit SQL/query capability maps to search")
         try Self.expect(objectManifest.capabilities.contains(.desktopCache), "crawlkit tap capability maps to desktop cache")
         try Self.expect(objectManifest.capabilities.contains(.publish), "crawlkit git-share capability maps to publish")
+        try Self.expect(objectManifest.permissions.first?.id == "full_disk_access", "manifest permissions decode from JSON")
+        try Self.expect(objectManifest.permissions.first?.optional == true, "manifest optional permissions decode from JSON")
+        try Self.expect(manifest.permissions.first?.label == "Full Disk Access", "manifest permissions encode from Swift")
         guard let cacheManifest = manifests.first(where: { $0.id.rawValue == "cachecrawl" }) else {
             throw SelfTestError.failed("desktop cache manifest loads from disk")
         }
@@ -156,11 +169,17 @@ extension CrawlBarSelfTest {
         try Self.expect(BuiltInCrawlApps.telecrawl.privacy.containsPrivateMessages, "telecrawl privacy metadata flags Telegram messages")
         try Self.expect(BuiltInCrawlApps.telecrawl.install?.package == "steipete/tap/telecrawl", "telecrawl install metadata exists")
         try Self.expect(BuiltInCrawlApps.telecrawl.paths.defaultConfig == "~/.telecrawl/backup.json", "telecrawl config path maps")
+        try Self.expect(BuiltInCrawlApps.imsgcrawl.displayName == "iMessage", "imsgcrawl display name is source app name")
         try Self.expect(BuiltInCrawlApps.imsgcrawl.commands["status"] == ["--json", "status"], "imsgcrawl uses crawlkit status command")
         try Self.expect(BuiltInCrawlApps.imsgcrawl.commands["refresh"] == ["--json", "sync"], "imsgcrawl sync is wired as refresh")
         try Self.expect(BuiltInCrawlApps.imsgcrawl.commands["contact-export"] == ["--json", "contacts", "export"], "imsgcrawl contact export is wired")
         try Self.expect(BuiltInCrawlApps.imsgcrawl.privacy.containsPrivateMessages, "imsgcrawl privacy metadata flags iMessage data")
         try Self.expect(BuiltInCrawlApps.imsgcrawl.branding.bundleIdentifier == "com.apple.MobileSMS", "imsgcrawl uses native Messages app icon")
+        try Self.expect(BuiltInCrawlApps.imsgcrawl.permissions.first?.id == "full_disk_access", "imsgcrawl declares Full Disk Access")
+        try Self.expect(BuiltInCrawlApps.imsgcrawl.permissions.first?.optional == false, "imsgcrawl Full Disk Access is required")
+        try Self.expect(
+            BuiltInCrawlApps.all.filter { !$0.permissions.isEmpty }.map(\.id) == [BuiltInCrawlApps.imsgcrawlID],
+            "built-in permissions stay limited to verified crawler requirements")
         try Self.expect(BuiltInCrawlApps.graincrawl.commands["status"] == ["status", "--json"], "graincrawl uses crawlkit status command")
         try Self.expect(
             BuiltInCrawlApps.graincrawl.commands["refresh"] == ["sync", "--json"],
