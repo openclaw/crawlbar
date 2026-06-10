@@ -1,10 +1,10 @@
-// swift-tools-version: 6.1
+// swift-tools-version: 6.2
 import PackageDescription
 
 let package = Package(
     name: "CrawlBar",
     platforms: [
-        .macOS(.v14),
+        .macOS(.v26),
     ],
     products: [
         .library(name: "CrawlBarCore", targets: ["CrawlBarCore"]),
