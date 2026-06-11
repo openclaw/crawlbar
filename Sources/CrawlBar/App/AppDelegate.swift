@@ -17,6 +17,7 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     func applicationDidFinishLaunching(_ notification: Notification) {
         CrawlBarLog.app.notice("CrawlBar launched")
         self.configureMainMenu()
+        self.configureDeepLinks()
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(Self.statusesDidChange(_:)),
@@ -73,9 +74,21 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         NSApplication.shared.mainMenu = mainMenu
     }
 
+    private func configureDeepLinks() {
+        // Public automation surface: crawlbar://settings opens the normal Settings window.
+        NSAppleEventManager.shared().setEventHandler(
+            self,
+            andSelector: #selector(Self.handleGetURLEvent(_:withReplyEvent:)),
+            forEventClass: AEEventClass(kInternetEventClass),
+            andEventID: AEEventID(kAEGetURL))
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         CrawlBarLog.app.notice("CrawlBar terminated")
         self.pendingMenuReloadTask?.cancel()
+        NSAppleEventManager.shared().removeEventHandler(
+            forEventClass: AEEventClass(kInternetEventClass),
+            andEventID: AEEventID(kAEGetURL))
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -173,6 +186,37 @@ final class CrawlBarAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
 
     @objc private func showSettings(_ sender: Any?) {
         self.openSettings(appID: nil)
+    }
+
+    @objc private func handleGetURLEvent(
+        _ event: NSAppleEventDescriptor,
+        withReplyEvent replyEvent: NSAppleEventDescriptor)
+    {
+        guard
+            let urlString = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue,
+            let url = URL(string: urlString)
+        else {
+            CrawlBarLog.app.debug("Ignoring malformed CrawlBar URL event")
+            return
+        }
+        self.openDeepLink(url)
+    }
+
+    private func openDeepLink(_ url: URL) {
+        guard url.scheme?.lowercased() == "crawlbar" else {
+            CrawlBarLog.app.debug("Ignoring unsupported URL scheme")
+            return
+        }
+
+        let route = url.host?.lowercased()
+            ?? url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
+        switch route {
+        case "settings":
+            CrawlBarLog.app.debug("Opening settings from crawlbar://settings")
+            self.openSettings(appID: nil)
+        default:
+            CrawlBarLog.app.debug("Ignoring unsupported CrawlBar deep link")
+        }
     }
 
     @objc private func showSettingsForAppMenuItem(_ sender: NSMenuItem) {

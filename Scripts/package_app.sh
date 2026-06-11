@@ -45,6 +45,17 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
   <string>CrawlBar</string>
   <key>CFBundleIconFile</key>
   <string>CrawlBar</string>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>com.vincentkoc.CrawlBar</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>crawlbar</string>
+      </array>
+    </dict>
+  </array>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
