@@ -3,18 +3,31 @@ import SwiftUI
 
 struct CrawlBarSettingsView: View {
     @ObservedObject var model: CrawlBarSettingsModel
+    @State private var isSidebarVisible = true
 
     var body: some View {
-        NavigationSplitView {
-            CrawlBarSettingsSidebar(model: self.model)
-                .navigationSplitViewColumnWidth(
-                    min: CrawlBarSettingsLayout.sidebarMinWidth,
-                    ideal: CrawlBarSettingsLayout.sidebarIdealWidth,
-                    max: CrawlBarSettingsLayout.sidebarMaxWidth)
-        } detail: {
+        // NavigationSplitView rehomes its sidebar toolbar item when collapsed
+        // inside this manually managed Settings window.
+        HStack(spacing: 0) {
+            if self.isSidebarVisible {
+                CrawlBarSettingsSidebar(model: self.model)
+                    .frame(width: CrawlBarSettingsLayout.sidebarIdealWidth)
+                Divider()
+            }
             CrawlBarSettingsDetail(model: self.model)
         }
-        .navigationSplitViewStyle(.balanced)
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button {
+                    self.toggleSidebar()
+                } label: {
+                    Label(self.sidebarToggleTitle, systemImage: "sidebar.left")
+                }
+                .labelStyle(.iconOnly)
+                .help(self.sidebarToggleTitle)
+                .accessibilityLabel(self.sidebarToggleTitle)
+            }
+        }
         .frame(
             minWidth: CrawlBarSettingsLayout.minWindowWidth,
             maxWidth: .infinity,
@@ -22,6 +35,14 @@ struct CrawlBarSettingsView: View {
             maxHeight: .infinity,
             alignment: .topLeading)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var sidebarToggleTitle: String {
+        self.isSidebarVisible ? "Hide Sidebar" : "Show Sidebar"
+    }
+
+    private func toggleSidebar() {
+        self.isSidebarVisible.toggle()
     }
 }
 
