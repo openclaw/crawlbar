@@ -53,11 +53,19 @@ extension CrawlStatusMapper {
             return .current
         case "warn", "warning", "degraded":
             return .stale
-        case "failed", "failure":
+        case "failed", "failure", "source_error", "archive_error":
             return .error
         default:
             return nil
         }
+    }
+
+    func stringValues(_ keys: [String], in object: [String: Any]) -> [String] {
+        for key in keys {
+            guard let values = self.firstValue(key, in: object) as? [Any] else { continue }
+            return values.compactMap { ($0 as? String)?.nilIfBlank }
+        }
+        return []
     }
 
     func dateValue(_ keys: [String], in object: [String: Any]) -> Date? {

@@ -315,6 +315,30 @@ extension CrawlBarSelfTest {
         let failedStatus = CrawlStatusMapper().status(from: failedResult, manifest: BuiltInCrawlApps.graincrawl)
         try Self.expect(failedStatus.state == .error, "crawlkit failed state maps to error")
 
+        let imsgcrawlSourceErrorResult = CrawlCommandResult(
+            appID: BuiltInCrawlApps.imsgcrawlID,
+            action: "status",
+            exitCode: 0,
+            stdout: """
+            {
+              "schema_version": "crawlkit.control.v1",
+              "app_id": "imsgcrawl",
+              "state": "source_error",
+              "summary": "Messages source could not be read.",
+              "warnings": ["archive has not been synced"],
+              "errors": ["Messages database access was denied"]
+            }
+            """,
+            stderr: "",
+            startedAt: Date(),
+            finishedAt: Date())
+        let imsgcrawlSourceErrorStatus = CrawlStatusMapper().status(
+            from: imsgcrawlSourceErrorResult,
+            manifest: BuiltInCrawlApps.imsgcrawl)
+        try Self.expect(imsgcrawlSourceErrorStatus.state == .error, "crawlkit source errors map to error")
+        try Self.expect(imsgcrawlSourceErrorStatus.warnings == ["archive has not been synced"], "crawlkit warnings are preserved")
+        try Self.expect(imsgcrawlSourceErrorStatus.errors == ["Messages database access was denied"], "crawlkit errors are preserved")
+
         let githubAuthMessage = """
         [github] request GET /repos/openclaw/openclaw
         github GET /repos/openclaw/openclaw failed with status 401: {

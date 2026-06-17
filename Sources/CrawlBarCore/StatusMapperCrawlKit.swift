@@ -27,7 +27,9 @@ extension CrawlStatusMapper {
             share: self.shareStatus(in: object),
             remote: remote,
             sqliteObject: self.sqliteObjectStatus(in: object),
-            sqliteBundle: self.sqliteBundleStatus(in: object))
+            sqliteBundle: self.sqliteBundleStatus(in: object),
+            warnings: self.stringValues(["warnings"], in: object),
+            errors: self.stringValues(["errors"], in: object))
     }
 
     func isCrawlKitStatus(_ object: [String: Any]) -> Bool {
