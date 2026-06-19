@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- Install OpenClaw crawler apps from the current Homebrew tap instead of legacy formulas that lag released versions.
+
 ## v0.3.0 - 2026-06-09
 
 ### Changes

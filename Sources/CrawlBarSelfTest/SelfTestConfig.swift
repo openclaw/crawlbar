@@ -144,7 +144,16 @@ extension CrawlBarSelfTest {
         try Self.expect(secretStatusManifest.needsSecretsForStatus, "external secret status can opt into keychain reads")
         try Self.expect(BuiltInCrawlApps.slacrawl.privacy.containsPrivateMessages, "Slack privacy metadata flags local messages")
         try Self.expect(BuiltInCrawlApps.notcrawl.privacy.localOnlyScopes.contains("workspace pages"), "Notion privacy metadata flags workspace pages")
-        try Self.expect(BuiltInCrawlApps.slacrawl.install?.package == "vincentkoc/tap/slacrawl", "built-in install metadata exists")
+        let openClawTapApps = [
+            BuiltInCrawlApps.gitcrawl,
+            BuiltInCrawlApps.slacrawl,
+            BuiltInCrawlApps.discrawl,
+            BuiltInCrawlApps.notcrawl,
+            BuiltInCrawlApps.graincrawl,
+        ]
+        try Self.expect(
+            openClawTapApps.allSatisfy { $0.install?.package.hasPrefix("openclaw/tap/") == true },
+            "OpenClaw crawlers install from the current tap")
         try Self.expect(BuiltInCrawlApps.gogcli.availability == .available, "Google manifest is available")
         try Self.expect(BuiltInCrawlApps.gogcli.binary.name == "gog", "Google manifest uses the installed gog binary")
         try Self.expect(BuiltInCrawlApps.gogcli.commands["status"] == ["auth", "list", "--check", "--json", "--no-input"], "Google status is wired")

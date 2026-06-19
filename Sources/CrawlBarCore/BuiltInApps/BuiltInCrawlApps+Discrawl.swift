@@ -41,6 +41,6 @@ public extension BuiltInCrawlApps {
             .init(id: "discord", title: "Discord Access", optionIDs: ["discord_token"]),
             .init(id: "ai", title: "Embeddings", optionIDs: ["openai_api_key", "embedding_model"]),
         ],
-        install: .init(method: .homebrew, package: "vincentkoc/tap/discrawl"))
+        install: .init(method: .homebrew, package: "openclaw/tap/discrawl"))
         .withSuggestion(Self.appSuggest("Discord", ["com.hnc.Discord"]))
 }

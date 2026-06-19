@@ -40,6 +40,6 @@ public extension BuiltInCrawlApps {
             .init(id: "slack", title: "Slack Access", optionIDs: ["slack_token"]),
             .init(id: "ai", title: "Embeddings", optionIDs: ["openai_api_key", "embedding_model"]),
         ],
-        install: .init(method: .homebrew, package: "vincentkoc/tap/slacrawl"))
+        install: .init(method: .homebrew, package: "openclaw/tap/slacrawl"))
         .withSuggestion(Self.appSuggest("Slack", ["com.tinyspeck.slackmacgap"]))
 }

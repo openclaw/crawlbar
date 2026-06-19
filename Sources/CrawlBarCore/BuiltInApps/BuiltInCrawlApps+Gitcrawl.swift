@@ -39,6 +39,6 @@ public extension BuiltInCrawlApps {
             .init(id: "github", title: "GitHub Access", optionIDs: ["github_token"]),
             .init(id: "ai", title: "Embeddings", optionIDs: ["openai_api_key", "embedding_model"]),
         ],
-        install: .init(method: .homebrew, package: "vincentkoc/tap/gitcrawl"))
+        install: .init(method: .homebrew, package: "openclaw/tap/gitcrawl"))
         .withSuggestion(Self.alwaysSuggest("GitHub"))
 }

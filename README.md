@@ -64,12 +64,8 @@ script places it on PATH as `crawlbar`.
 ## Install
 
 ```sh
-brew install vincentkoc/tap/crawlbar
-# or
 brew install openclaw/tap/crawlbar
 ```
-
-The release also publishes the same formula to the OpenClaw Homebrew tap.
 
 ## Config
 
