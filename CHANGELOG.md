@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changes
+
+- Add Apple Photos as a built-in crawler with read-only status, refresh, search, platform-native storage paths, and configurable library selection.
+
 ### Fixes
 
 - Install OpenClaw crawler apps from the current Homebrew tap instead of legacy formulas that lag released versions.

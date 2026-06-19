@@ -6,6 +6,7 @@ public enum BuiltInCrawlApps {
     public static let discrawlID = CrawlAppID(rawValue: "discrawl")
     public static let telecrawlID = CrawlAppID(rawValue: "telecrawl")
     public static let imsgcrawlID = CrawlAppID(rawValue: "imsgcrawl")
+    public static let photoscrawlID = CrawlAppID(rawValue: "photoscrawl")
     public static let notcrawlID = CrawlAppID(rawValue: "notcrawl")
     public static let gogcliID = CrawlAppID(rawValue: "gogcli")
     public static let wacliID = CrawlAppID(rawValue: "wacli")
@@ -18,6 +19,7 @@ public enum BuiltInCrawlApps {
         Self.discrawl,
         Self.telecrawl,
         Self.imsgcrawl,
+        Self.photoscrawl,
         Self.notcrawl,
         Self.gogcli,
         Self.wacli,
