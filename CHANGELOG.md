@@ -4,7 +4,7 @@
 
 ### Changes
 
-- Add Apple Photos as a coming-soon built-in crawler with read-only status, refresh, search, platform-native storage paths, and configurable library selection.
+- Add Apple Photos as a coming-soon built-in crawler with read-only status, initialization, search, and platform-native storage paths.
 
 ### Fixes
 

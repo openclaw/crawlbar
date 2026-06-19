@@ -20,10 +20,10 @@ public extension BuiltInCrawlApps {
         commands: [
             "metadata": ["metadata", "--json"],
             "status": ["status", "--json"],
-            "refresh": ["crawl", "--library", "{config:library_path}", "--json"],
+            "init": ["init", "--json"],
             "query": ["search", "--json", "--query"],
         ],
-        capabilities: [.status, .refresh, .search],
+        capabilities: [.status, .search],
         statusRequiresSecrets: false,
         privacy: .init(
             exportsSecrets: false,
@@ -33,16 +33,6 @@ public extension BuiltInCrawlApps {
                 "media-metadata",
                 "location-observations",
                 "local-model-observations",
-            ]),
-        configOptions: [
-            .init(
-                id: "library_path",
-                label: "Photos library",
-                help: "Photos Library package read by refresh; photoscrawl expands a leading ~/ path.",
-                defaultValue: "~/Pictures/Photos Library.photoslibrary"),
-        ],
-        configSections: [
-            .init(id: "photos", title: "Photos Library", optionIDs: ["library_path"]),
-        ])
+            ]))
         .withSuggestion(Self.appSuggest("Photos", ["com.apple.Photos"]))
 }

@@ -17,8 +17,14 @@ extension CrawlBarSelfTest {
         try Self.expect(config.appConfig(for: BuiltInCrawlApps.photoscrawlID)?.enabled == false, "coming-soon Photos crawler normalizes disabled")
         try Self.expect(BuiltInCrawlApps.photoscrawl.availability == .comingSoon, "Photos crawler remains coming soon without an installer")
         try Self.expect(
-            BuiltInCrawlApps.photoscrawl.commands["refresh"] == ["crawl", "--library", "{config:library_path}", "--json"],
-            "Photos refresh uses the configured library path")
+            BuiltInCrawlApps.photoscrawl.commands["init"] == ["init", "--json"],
+            "Photos initialization matches the crawler control contract")
+        try Self.expect(
+            BuiltInCrawlApps.photoscrawl.commands["query"] == ["search", "--json", "--query"],
+            "Photos search matches the crawler control contract")
+        try Self.expect(BuiltInCrawlApps.photoscrawl.commands["refresh"] == nil, "Photos does not advertise an unsupported refresh action")
+        try Self.expect(BuiltInCrawlApps.photoscrawl.capabilities == [.status, .search], "Photos capabilities match CrawlBar-supported crawler metadata")
+        try Self.expect(BuiltInCrawlApps.photoscrawl.configOptions.isEmpty, "Photos does not expose settings absent from crawler metadata")
         let oldConfig = CrawlBarConfig(
             version: 1,
             apps: [CrawlBarAppConfig(id: BuiltInCrawlApps.wacliID, enabled: false, showInMenuBar: false)]).normalized()
