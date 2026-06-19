@@ -5,6 +5,7 @@ public extension BuiltInCrawlApps {
         id: Self.photoscrawlID,
         displayName: "Apple Photos",
         description: "Local-first, read-only Apple Photos archive crawler",
+        availability: .comingSoon,
         binary: .init(name: "photoscrawl"),
         branding: .init(
             symbolName: "photo.on.rectangle.angled",

@@ -14,7 +14,8 @@ extension CrawlBarSelfTest {
         try Self.expect(config.apps.map(\.id) == BuiltInCrawlApps.all.map(\.id), "built-in apps are present")
         try Self.expect(config.appConfig(for: BuiltInCrawlApps.gogcliID)?.enabled == true, "new Google app normalizes enabled")
         try Self.expect(config.appConfig(for: BuiltInCrawlApps.gogcliID)?.showInMenuBar == true, "new Google app appears in menu bar")
-        try Self.expect(config.appConfig(for: BuiltInCrawlApps.photoscrawlID)?.enabled == true, "Photos crawler normalizes enabled")
+        try Self.expect(config.appConfig(for: BuiltInCrawlApps.photoscrawlID)?.enabled == false, "coming-soon Photos crawler normalizes disabled")
+        try Self.expect(BuiltInCrawlApps.photoscrawl.availability == .comingSoon, "Photos crawler remains coming soon without an installer")
         try Self.expect(
             BuiltInCrawlApps.photoscrawl.commands["refresh"] == ["crawl", "--library", "{config:library_path}", "--json"],
             "Photos refresh uses the configured library path")
