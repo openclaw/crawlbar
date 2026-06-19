@@ -10,7 +10,7 @@ jobs:
   swift:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Brand icon compatibility
         run: Scripts/check_brand_icons.sh
       - name: Build
