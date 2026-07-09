@@ -1,6 +1,10 @@
 # Changelog
 
-## v0.4.1 - Unreleased
+## v0.4.1 - 2026-07-09
+
+### Changes
+
+- Distribute notarized universal macOS builds signed by the OpenClaw Foundation, including Homebrew installs, so the app identity persists across upgrades.
 
 ### Fixes
 

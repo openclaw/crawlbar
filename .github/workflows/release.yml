@@ -1,0 +1,77 @@
+name: Verify release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to verify
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Download and verify release assets
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "invalid release tag: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          git fetch --force --no-tags origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+          if [ "$(git cat-file -t "refs/tags/${RELEASE_TAG}")" != "tag" ]; then
+            echo "release tag must be annotated" >&2
+            exit 1
+          fi
+          tag_object="$(git rev-parse "refs/tags/${RELEASE_TAG}")"
+          api="${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}"
+          ref_json="$(curl --fail --silent --show-error --location --retry 3 \
+            --header "Authorization: Bearer ${GITHUB_TOKEN}" \
+            --header 'Accept: application/vnd.github+json' \
+            "${api}/git/ref/tags/${RELEASE_TAG}")"
+          if [ "$(jq -r '.object.type' <<<"$ref_json")" != "tag" ] || \
+             [ "$(jq -r '.object.sha' <<<"$ref_json")" != "$tag_object" ]; then
+            echo "release tag does not match the annotated GitHub tag object" >&2
+            exit 1
+          fi
+          tag_json="$(curl --fail --silent --show-error --location --retry 3 \
+            --header "Authorization: Bearer ${GITHUB_TOKEN}" \
+            --header 'Accept: application/vnd.github+json' \
+            "${api}/git/tags/${tag_object}")"
+          if [ "$(jq -r '.verification.verified' <<<"$tag_json")" != "true" ]; then
+            echo "release tag signature is not verified by GitHub" >&2
+            exit 1
+          fi
+          tag_commit="$(git rev-list -n 1 "refs/tags/${RELEASE_TAG}")"
+          if ! git merge-base --is-ancestor "$tag_commit" HEAD; then
+            echo "release tag is not reachable from protected default-branch history" >&2
+            exit 1
+          fi
+          version="${RELEASE_TAG#v}"
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}"
+          archive="CrawlBar-v${version}-macos.zip"
+          checksum="${archive}.sha256"
+          curl --fail --location --retry 3 --output "$archive" "${base}/${archive}"
+          curl --fail --location --retry 3 --output "$checksum" "${base}/${checksum}"
+          expected="$(awk -v name="$archive" '$2 == name { print $1 }' "$checksum")"
+          if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "checksum asset does not bind exactly to $archive" >&2
+            exit 1
+          fi
+          actual="$(shasum -a 256 "$archive" | awk '{ print $1 }')"
+          test "$actual" = "$expected"
+          CRAWLBAR_EXPECTED_VERSION="$version" Scripts/verify_release.sh --require-notarized "$archive"

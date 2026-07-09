@@ -3,6 +3,8 @@
 DerivedData/
 CrawlBar.app/
 dist/
+.mac-release.env
+.mac-release.local.env
 *.xcuserdata/
 *.xcodeproj/
 *.xcworkspace/
