@@ -84,9 +84,8 @@ extension CrawlBarSelfTest {
           "schema_version": "crawlkit.control.v1",
           "id": "objectcrawl",
           "display_name": "Object Crawl",
-          "description": "A crawlkit manifest",
           "binary": {"name": "objectcrawl"},
-          "branding": {"symbol_name": "tray", "accent_color": "#123456"},
+          "branding": {},
           "paths": {"default_config": "~/.objectcrawl/config.toml"},
           "commands": {
             "status": {"title": "Status", "argv": ["objectcrawl", "status", "--json"], "json": true},
@@ -127,6 +126,8 @@ extension CrawlBarSelfTest {
             throw SelfTestError.failed("crawlkit command-object manifests load from disk")
         }
         try Self.expect(objectManifest.commands["status"] == ["status", "--json"], "crawlkit command argv strips binary")
+        try Self.expect(objectManifest.description.isEmpty, "crawlkit optional description can be omitted")
+        try Self.expect(objectManifest.branding.accentColor == "#6E6E73", "crawlkit optional branding uses a neutral fallback")
         try Self.expect(objectManifest.commands["query"] == ["--json", "sql"], "crawlkit query sample SQL is stripped")
         try Self.expect(objectManifest.commands["refresh"] == ["sync", "--json"], "crawlkit sync command aliases to refresh")
         try Self.expect(objectManifest.commands["desktop-cache-import"] == ["tap", "--json"], "crawlkit tap command aliases to desktop cache import")

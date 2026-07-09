@@ -2,6 +2,10 @@
 
 ## v0.4.1 - Unreleased
 
+### Fixes
+
+- Accept current `crawlkit/control` manifests when optional descriptions or branding metadata are omitted.
+
 ## v0.4.0 - 2026-06-19
 
 ### Changes
