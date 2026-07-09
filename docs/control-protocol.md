@@ -1,19 +1,18 @@
 # CrawlBar Control Protocol
 
 CrawlBar treats each crawler as a local CLI with a small control contract.
-Today that contract lives in CrawlBar manifests and adapters. The cleaner
-long-term home is `crawlkit`, because the Go CLIs already share config,
-status, output, desktop-cache, pack, and git-share infrastructure there.
+The canonical Go contract lives in `crawlkit/control`; CrawlBar also accepts
+its legacy array-valued manifests for compatibility.
 
 ## Manifest
 
 A crawler can be built in or represented by a manifest JSON file under
-`~/.crawlbar/apps`. Once `crawlkit` grows a control package, each crawler should
-also expose the same payload through `metadata --json`.
+`~/.crawlbar/apps`. CrawlKit-based crawlers should expose the same payload
+through `metadata --json`.
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": "crawlkit.control.v1",
   "id": "examplecrawl",
   "display_name": "Example Crawl",
   "description": "Local archive for Example",
@@ -27,47 +26,17 @@ also expose the same payload through `metadata --json`.
     "default_share": "~/.examplecrawl/share"
   },
   "commands": {
-    "metadata": ["metadata", "--json"],
-    "status": ["status", "--json"],
-    "doctor": ["doctor", "--json"],
-    "refresh": ["sync", "--json"],
-    "publish": ["publish", "--json"],
-    "update": ["update", "--json"],
-    "remote-status": ["remote", "status", "--json"],
-    "remote-archives": ["remote", "archives", "--json"],
-    "cloud-publish": ["cloud", "publish", "--json"]
+    "metadata": {"argv": ["examplecrawl", "metadata", "--json"], "json": true},
+    "status": {"argv": ["examplecrawl", "status", "--json"], "json": true},
+    "doctor": {"argv": ["examplecrawl", "doctor", "--json"], "json": true},
+    "sync": {"argv": ["examplecrawl", "sync", "--json"], "json": true, "mutates": true},
+    "publish": {"argv": ["examplecrawl", "publish", "--json"], "json": true, "mutates": true},
+    "update": {"argv": ["examplecrawl", "update", "--json"], "json": true, "mutates": true},
+    "remote-status": {"argv": ["examplecrawl", "remote", "status", "--json"], "json": true},
+    "remote-archives": {"argv": ["examplecrawl", "remote", "archives", "--json"], "json": true},
+    "cloud-publish": {"argv": ["examplecrawl", "cloud", "publish", "--json"], "json": true, "mutates": true}
   },
-  "capabilities": ["status", "doctor", "refresh", "publish", "update", "remote_archive", "cloud_publish"],
-  "config_options": [
-    {
-      "id": "api_token",
-      "label": "API token",
-      "kind": "secret",
-      "env_var": "EXAMPLECRAWL_TOKEN",
-      "config_key": "example.token"
-    },
-    {
-      "id": "embedding_model",
-      "label": "Embedding model",
-      "kind": "choice",
-      "default_value": "text-embedding-3-small",
-      "choices": ["text-embedding-3-small", "text-embedding-3-large"],
-      "env_var": "OPENAI_EMBEDDING_MODEL",
-      "config_key": "embeddings.model"
-    }
-  ],
-  "config_sections": [
-    {
-      "id": "access",
-      "title": "Example Access",
-      "option_ids": ["api_token"]
-    },
-    {
-      "id": "ai",
-      "title": "Embeddings",
-      "option_ids": ["embedding_model"]
-    }
-  ],
+  "capabilities": ["status", "doctor", "sync", "publish", "update", "remote_archive", "cloud_publish"],
   "privacy": {
     "contains_private_messages": false,
     "exports_secrets": false,
@@ -89,7 +58,7 @@ CrawlBar accepts varied JSON, then normalizes known fields into one status model
 
 Unknown fields are allowed. The app should not break when a crawler adds extra data.
 
-The preferred future shape is a `crawlkit`-owned status envelope with:
+The canonical `crawlkit/control.Status` envelope has:
 
 - `app_id`, `schema_version`, `generated_at`, `state`, and `summary`.
 - normalized counters as `{id,label,value}` rows.
@@ -104,9 +73,11 @@ The preferred future shape is a `crawlkit`-owned status envelope with:
 
 ## Configuration
 
-`config_options` describe editable values. `config_sections` only arrange those
-fields into native settings groups. Duplicate option IDs are ignored after the
-first entry so a broken external manifest cannot crash the settings UI.
+CrawlBar file manifests can additionally include `config_options` describing
+editable values and `config_sections` arranging them into native settings
+groups. These are CrawlBar extensions, not fields in the current
+`crawlkit/control.Manifest`. Duplicate option IDs are ignored after the first
+entry so a broken external manifest cannot crash the settings UI.
 
 Secrets must never be emitted by `metadata --json`, and config reads should
 redact them unless an explicit reveal flag is provided. Longer term, crawler
@@ -115,7 +86,8 @@ editing TOML directly.
 
 ## Actions
 
-Actions are manifest command arrays. CrawlBar does not shell-expand them.
+Canonical actions are manifest command objects containing an `argv` array.
+CrawlBar also accepts its legacy array-only form and never shell-expands either.
 
 - `status` should be fast and read-only.
 - `doctor` may inspect auth/config and should avoid writes unless the crawler already defines that behavior.

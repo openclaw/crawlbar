@@ -79,11 +79,11 @@ public struct CrawlAppManifest: Codable, Equatable, Sendable, Identifiable {
         self.schemaVersion = Self.decodeSchemaVersion(from: container)
         self.id = try container.decode(CrawlAppID.self, forKey: .id)
         self.displayName = try container.decode(String.self, forKey: .displayName)
-        self.description = try container.decode(String.self, forKey: .description)
+        self.description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
         self.availability = try container.decodeIfPresent(CrawlAppManifest.Availability.self, forKey: .availability) ?? .available
         self.binary = try container.decode(CrawlAppManifest.Binary.self, forKey: .binary)
         self.execution = try container.decodeIfPresent(CrawlAppManifest.Execution.self, forKey: .execution)
-        self.branding = try container.decode(CrawlAppManifest.Branding.self, forKey: .branding)
+        self.branding = try container.decodeIfPresent(CrawlAppManifest.Branding.self, forKey: .branding) ?? .init()
         self.paths = try container.decode(CrawlAppManifest.Paths.self, forKey: .paths)
         self.commands = try Self.decodeCommands(from: container, binaryName: self.binary.name)
         self.capabilities = Self.decodeCapabilities(from: container, commands: self.commands)

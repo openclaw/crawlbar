@@ -8,8 +8,8 @@ public extension CrawlAppManifest {
         public var bundleIdentifier: String?
 
         public init(
-            symbolName: String,
-            accentColor: String,
+            symbolName: String = "",
+            accentColor: String = "#6E6E73",
             iconPath: String? = nil,
             bundleIdentifier: String? = nil)
         {
@@ -24,6 +24,14 @@ public extension CrawlAppManifest {
             case accentColor = "accent_color"
             case iconPath = "icon_path"
             case bundleIdentifier = "bundle_identifier"
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.symbolName = try container.decodeIfPresent(String.self, forKey: .symbolName) ?? ""
+            self.accentColor = try container.decodeIfPresent(String.self, forKey: .accentColor) ?? "#6E6E73"
+            self.iconPath = try container.decodeIfPresent(String.self, forKey: .iconPath)
+            self.bundleIdentifier = try container.decodeIfPresent(String.self, forKey: .bundleIdentifier)
         }
     }
 }
