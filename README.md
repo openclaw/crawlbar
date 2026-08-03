@@ -1,105 +1,82 @@
-# CrawlBar
+# CrawlBar 🕷️ — One menu bar for your local crawlers
+
+[![CI](https://img.shields.io/github/actions/workflow/status/openclaw/crawlbar/ci.yml?branch=main&style=flat-square&label=ci)](https://github.com/openclaw/crawlbar/actions/workflows/ci.yml)
+[![GitHub release](https://img.shields.io/github/v/release/openclaw/crawlbar?style=flat-square)](https://github.com/openclaw/crawlbar/releases/latest)
+[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?style=flat-square&logo=apple&logoColor=white)](https://www.apple.com/macos/)
+[![License](https://img.shields.io/github/license/openclaw/crawlbar?style=flat-square)](LICENSE)
+[![Homebrew](https://img.shields.io/badge/Homebrew-openclaw%2Ftap-FBB040?style=flat-square&logo=homebrew&logoColor=black)](https://github.com/openclaw/homebrew-tap)
 
 ![CrawlBar banner](docs/assets/readme-banner.jpg)
 
-CrawlBar is a macOS menu bar control plane for local-first `*crawl` apps.
+CrawlBar is a native macOS menu bar app and CLI for operating local source crawlers. It discovers crawler manifests, shows status and freshness, runs supported actions, and keeps local configuration and redacted action logs in one place.
 
-It discovers crawler CLIs, reads metadata manifests, shows status/freshness/counts, runs refresh and doctor actions, writes redacted job logs, and keeps per-app config in `~/.crawlbar/config.json`.
-
-For `gitcrawl` and `discrawl`, CrawlBar also understands Cloudflare-backed remote archives: `remote status`, `remote archives`, and compressed SQLite `cloud publish` actions appear in the app when the installed CLI exposes them.
-
-## Apps
-
-Built-in manifests ship for:
-
-- `gitcrawl`
-- `slacrawl`
-- `discrawl`
-- `telecrawl`
-- `imsgcrawl`
-- `photoscrawl` (coming soon)
-- `weicrawl`
-- `notcrawl`
-- `gogcli` through the `gog` executable
-- `wacli`
-- `birdclaw`
-- `graincrawl`
-
-`gogcli`, `wacli`, and `birdclaw` can run either locally or over SSH from
-their CrawlBar settings. This covers setups where the real archive or account
-tooling lives on a server.
-
-Future crawler repos can drop a manifest JSON file into `~/.crawlbar/apps/*.json` to appear without a CrawlBar code change.
-
-## Build
-
-```sh
-swift build
-swift run crawlbar-selftest
-swift run crawlbarctl apps --json
-```
-
-## CLI
-
-```sh
-crawlbar apps [--json]
-crawlbar metadata [--app gitcrawl] [--json]
-crawlbar status [--app all] [--json]
-crawlbar query --app all -- manifest
-crawlbar query --app slacrawl -- 'select count(*) from messages;'
-crawlbar doctor --app discrawl [--json]
-crawlbar refresh --app slacrawl [--json]
-crawlbar action desktop-cache-import --app discrawl [--json]
-crawlbar action cloud-publish --app discrawl [--json]
-crawlbar action remote-status --app gitcrawl [--json]
-crawlbar logs [--json]
-crawlbar config path|validate|init
-crawlbar dev register --app gitcrawl --binary /path/to/gitcrawl [--json]
-crawlbar dev unregister --app gitcrawl [--json]
-crawlbar dev list [--json]
-```
-
-During development the SwiftPM product is `crawlbarctl` to avoid colliding with
-the `CrawlBar` app binary on case-insensitive macOS filesystems. The install
-script places it on PATH as `crawlbar`.
+![CrawlBar settings showing discovered local crawlers](docs/assets/crawlbar-settings.png)
 
 ## Install
+
+Install the notarized app and its `crawlbar` CLI with Homebrew:
 
 ```sh
 brew install openclaw/tap/crawlbar
 ```
 
-## Config
+CrawlBar requires macOS 14 or newer. You can also download the notarized universal build from [GitHub Releases](https://github.com/openclaw/crawlbar/releases/latest).
 
-Main config lives at:
-
-```text
-~/.crawlbar/config.json
-```
-
-Action logs live at:
-
-```text
-~/.crawlbar/logs
-```
-
-Both are written with private file permissions. Command output is redacted before it is returned to the UI or persisted as an action log.
-
-## Package The App
+## Quick start
 
 ```sh
-Scripts/package_app.sh
+open "$(brew --prefix crawlbar)/CrawlBar.app"
+crawlbar apps
+crawlbar config validate
 ```
 
-The packaged `.app` is written to `dist/CrawlBar.app`.
+The app appears in the menu bar. Open its menu to inspect crawler state, refresh all sources, or open Settings for per-crawler actions and configuration.
 
-Local and CI packages use ad-hoc signing and do not need release credentials.
-Official release packages fail closed unless they use the OpenClaw Foundation
-Developer ID identity. Runtime keychain and notarization profile locators belong
-in the ignored `.mac-release.local.env`, never in committed configuration.
+## Crawler discovery
 
-## Releases
+CrawlBar ships manifests for GitHub, Slack, Discord, Telegram, iMessage, Apple Photos, WeChat, Notion, Google, WhatsApp, X, and Granola crawler tools. Each manifest describes the executable, supported actions, configuration fields, paths, and privacy metadata; the UI only exposes capabilities that the manifest provides.
 
-Release notes are kept in [CHANGELOG.md](CHANGELOG.md). The packaged app bundle
-version is read from `version.env`. Official artifacts are universal, hardened,
-notarized, stapled, and verified by `Scripts/package_release.sh`.
+Additional crawlers can install a manifest at `~/.crawlbar/apps/*.json` without changing CrawlBar. The [control protocol](docs/control-protocol.md) documents the manifest schema, status normalization, command contract, remote execution, and privacy rules.
+
+## Actions and remote crawlers
+
+Common crawler capabilities include status, refresh, doctor, search, and local archive actions. GitHub and Discord crawlers can also expose Cloudflare remote-archive status and compressed SQLite publish actions when their installed CLIs advertise those capabilities.
+
+Google, WhatsApp, and X crawler commands can run locally or over SSH. Remote mode resolves the crawler binary on the configured host while keeping the same status and action model in CrawlBar.
+
+## CLI and automation
+
+The installed app includes a `crawlbar` CLI. SwiftPM names the development executable `crawlbarctl` so it does not collide with the `CrawlBar` app binary on case-insensitive filesystems.
+
+| Task | Command |
+|---|---|
+| List discovered crawlers | `crawlbar apps [--json]` |
+| Read normalized status | `crawlbar status --app <id\|all> [--json]` |
+| Run a crawler operation | `crawlbar doctor\|refresh --app <id> [--json]` |
+| Inspect or validate config | `crawlbar config path\|validate` |
+| Show all commands | `crawlbar --help` |
+
+See the [CLI reference](docs/cli.md) for queries, actions, backups, configuration, development binary overrides, and JSON output.
+
+## Configuration and privacy
+
+CrawlBar stores its main configuration at `~/.crawlbar/config.json`, external manifests under `~/.crawlbar/apps`, and action logs under `~/.crawlbar/logs`. Configuration and logs use private file permissions.
+
+Crawler command output is redacted before it reaches the UI, CLI response, or action log. Source crawlers continue to own their archives, authentication, parsing, search, and source-specific privacy policy.
+
+## Development
+
+The package requires Swift 6.1 or newer.
+
+```sh
+swift build
+swift run crawlbar-selftest
+Scripts/package_app.sh
+codesign --verify --deep --strict --verbose=2 dist/CrawlBar.app
+```
+
+The packaged app is written to `dist/CrawlBar.app`. See the [development and packaging guide](docs/development.md) for signing and release-build details. Architecture and UI conventions live in the [quality rubric](docs/quality-rubric.md) and [UI rules](docs/ui-rules.md).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
