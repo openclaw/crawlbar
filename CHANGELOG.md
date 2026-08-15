@@ -2,6 +2,10 @@
 
 ## v0.4.2 - Unreleased
 
+### Fixes
+
+- Time out wedged `sqlite3 .backup` so Settings Backup and `crawlbar backup` leave "Backing up..." instead of hanging. Thanks @SebTardif.
+
 ## v0.4.1 - 2026-07-09
 
 ### Changes

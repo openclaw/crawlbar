@@ -25,6 +25,7 @@ public enum CrawlDatabaseBackupError: LocalizedError, Sendable {
     case noDatabases(CrawlAppID)
     case sqliteUnavailable
     case sqliteBackupFailed(path: String, message: String)
+    case timedOut(path: String, seconds: Int)
 
     public var errorDescription: String? {
         switch self {
@@ -34,6 +35,8 @@ public enum CrawlDatabaseBackupError: LocalizedError, Sendable {
             "sqlite3 is not available on PATH"
         case let .sqliteBackupFailed(path, message):
             "SQLite backup failed for \(path): \(message)"
+        case let .timedOut(path, seconds):
+            "SQLite backup timed out after \(seconds)s for \(path)"
         }
     }
 }
@@ -45,7 +48,15 @@ public enum CrawlDatabaseBackupStore {
             .appendingPathComponent("backups", isDirectory: true)
     }
 
-    public static func backup(status: CrawlAppStatus, root: URL = Self.defaultDirectory()) throws -> CrawlDatabaseBackup {
+    public static let sqliteProcessTimeout: TimeInterval = 60
+
+    public static func backup(
+        status: CrawlAppStatus,
+        root: URL = Self.defaultDirectory(),
+        resolver: CrawlExecutableResolver = CrawlExecutableResolver(),
+        sqliteProcessTimeout: TimeInterval = Self.sqliteProcessTimeout)
+        throws -> CrawlDatabaseBackup
+    {
         let resources = status.databases
             .filter { $0.kind == .sqlite || $0.kind == .cache }
             .compactMap { resource -> (resource: CrawlDatabaseResource, source: URL)? in
@@ -83,7 +94,11 @@ public enum CrawlDatabaseBackupStore {
                 try FileManager.default.removeItem(at: destination)
             }
             if entry.resource.kind == .sqlite || entry.resource.kind == .cache {
-                try Self.backupSQLite(source: entry.source, destination: destination)
+                try Self.backupSQLite(
+                    source: entry.source,
+                    destination: destination,
+                    resolver: resolver,
+                    timeoutSeconds: sqliteProcessTimeout)
             } else {
                 try FileManager.default.copyItem(at: entry.source, to: destination)
             }
@@ -93,8 +108,13 @@ public enum CrawlDatabaseBackupStore {
         return CrawlDatabaseBackup(appID: status.appID, directory: directory.path, files: copied)
     }
 
-    private static func backupSQLite(source: URL, destination: URL) throws {
-        guard let sqlitePath = CrawlExecutableResolver().resolve("sqlite3") else {
+    private static func backupSQLite(
+        source: URL,
+        destination: URL,
+        resolver: CrawlExecutableResolver,
+        timeoutSeconds: TimeInterval) throws
+    {
+        guard let sqlitePath = resolver.resolve("sqlite3") else {
             throw CrawlDatabaseBackupError.sqliteUnavailable
         }
         let process = Process()
@@ -110,7 +130,11 @@ public enum CrawlDatabaseBackupStore {
         let command = ".timeout 5000\n.backup '\(destination.path.replacingOccurrences(of: "'", with: "''"))'\n"
         input.fileHandleForWriting.write(Data(command.utf8))
         try? input.fileHandleForWriting.close()
-        process.waitUntilExit()
+        if CrawlProcessWait.waitUntilExit(process, timeoutSeconds: timeoutSeconds) == .timedOut {
+            throw CrawlDatabaseBackupError.timedOut(
+                path: source.path,
+                seconds: max(1, Int(timeoutSeconds.rounded(.up))))
+        }
 
         if process.terminationStatus != 0 {
             let data = pipe.fileHandleForReading.readDataToEndOfFile()

@@ -26,7 +26,9 @@ enum CrawlBarSelfTest {
         try Self.testWacliSearchJoinsQueryArguments()
         try Self.testGitcrawlCommandArgumentsInferRepository()
         try Self.testCommandTimeoutEscalates()
+        try Self.testProcessWaitTimesOut()
         try Self.testDatabaseBackupCopiesFiles()
+        try Self.testDatabaseBackupTimesOutWedgedSqlite()
         try Self.testRedactorScrubsSecrets()
         print("crawlbar selftest ok")
     }
