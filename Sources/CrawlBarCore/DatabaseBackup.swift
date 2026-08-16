@@ -48,7 +48,7 @@ public enum CrawlDatabaseBackupStore {
             .appendingPathComponent("backups", isDirectory: true)
     }
 
-    public static let sqliteProcessTimeout: TimeInterval = 60
+    public static let sqliteProcessTimeout: TimeInterval = 600
 
     public static func backup(
         status: CrawlAppStatus,
