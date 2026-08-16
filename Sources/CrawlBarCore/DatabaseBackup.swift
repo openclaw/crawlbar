@@ -48,13 +48,25 @@ public enum CrawlDatabaseBackupStore {
             .appendingPathComponent("backups", isDirectory: true)
     }
 
-    public static let sqliteProcessTimeout: TimeInterval = 600
+    private static let sqliteProcessTimeout: TimeInterval = 600
 
     public static func backup(
         status: CrawlAppStatus,
-        root: URL = Self.defaultDirectory(),
-        resolver: CrawlExecutableResolver = CrawlExecutableResolver(),
-        sqliteProcessTimeout: TimeInterval = Self.sqliteProcessTimeout)
+        root: URL = Self.defaultDirectory())
+        throws -> CrawlDatabaseBackup
+    {
+        try Self.backup(
+            status: status,
+            root: root,
+            resolver: CrawlExecutableResolver(),
+            sqliteProcessTimeout: Self.sqliteProcessTimeout)
+    }
+
+    package static func backup(
+        status: CrawlAppStatus,
+        root: URL,
+        resolver: CrawlExecutableResolver,
+        sqliteProcessTimeout: TimeInterval)
         throws -> CrawlDatabaseBackup
     {
         let resources = status.databases

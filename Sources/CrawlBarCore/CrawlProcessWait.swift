@@ -5,16 +5,16 @@ import Darwin
 import Glibc
 #endif
 
-public enum CrawlProcessWait {
-    public static let timeoutTerminationGrace: TimeInterval = 0.5
+package enum CrawlProcessWait {
+    package static let timeoutTerminationGrace: TimeInterval = 0.5
 
-    public enum Outcome: Equatable, Sendable {
+    package enum Outcome: Equatable, Sendable {
         case exited
         case timedOut
     }
 
     @discardableResult
-    public static func waitUntilExit(_ process: Process, timeoutSeconds: TimeInterval) -> Outcome {
+    package static func waitUntilExit(_ process: Process, timeoutSeconds: TimeInterval) -> Outcome {
         let semaphore = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in
             semaphore.signal()
