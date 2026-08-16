@@ -1,4 +1,5 @@
 import CrawlBarCore
+import Darwin
 import Foundation
 
 extension CrawlBarSelfTest {
@@ -143,6 +144,21 @@ extension CrawlBarSelfTest {
         }
     }
 
+    static func testProcessWaitTimesOut() throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", "trap '' TERM; exec /bin/sleep 3"]
+        try process.run()
+        let pid = process.processIdentifier
+        let startedAt = Date()
+        let outcome = CrawlProcessWait.waitUntilExit(process, timeoutSeconds: 0.2)
+        try Self.expect(outcome == .timedOut, "wedged child wait returns timedOut instead of blocking")
+        try Self.expect(Date().timeIntervalSince(startedAt) < 2.5, "timed-out child is killed promptly")
+        try Self.expect(!process.isRunning, "timed-out child is reaped")
+        errno = 0
+        try Self.expect(kill(pid, 0) == -1 && errno == ESRCH, "timed-out child pid is gone")
+    }
+
     static func testDatabaseBackupCopiesFiles() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("crawlbar-backup-\(UUID().uuidString)", isDirectory: true)
@@ -182,6 +198,54 @@ extension CrawlBarSelfTest {
         let copiedContents = try backup.files.map { try Self.sqliteValue(URL(fileURLWithPath: $0)) }
         try Self.expect(copiedContents.contains("sqlite-one"), "backup preserves first duplicate file")
         try Self.expect(copiedContents.contains("sqlite-two"), "backup preserves second duplicate file")
+    }
+
+    static func testDatabaseBackupTimesOutWedgedSqlite() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("crawlbar-backup-timeout-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let bin = directory.appendingPathComponent("bin", isDirectory: true)
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        let sqlite3 = bin.appendingPathComponent("sqlite3")
+        try Data("""
+        #!/bin/sh
+        trap '' TERM
+        exec /bin/sleep 5
+        """.utf8).write(to: sqlite3)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: sqlite3.path)
+
+        let source = directory.appendingPathComponent("hang.db")
+        try Data().write(to: source)
+
+        var environment = ProcessInfo.processInfo.environment
+        environment["PATH"] = "\(bin.path):\(environment["PATH"] ?? "")"
+        let resolver = CrawlExecutableResolver(environment: environment)
+        let status = CrawlAppStatus(
+            appID: BuiltInCrawlApps.notcrawlID,
+            state: .current,
+            summary: "ok",
+            databases: [
+                CrawlDatabaseResource(
+                    id: source.path,
+                    label: "Hang",
+                    kind: .sqlite,
+                    path: source.path,
+                    isPrimary: true),
+            ])
+
+        let startedAt = Date()
+        do {
+            _ = try CrawlDatabaseBackupStore.backup(
+                status: status,
+                root: directory.appendingPathComponent("backups", isDirectory: true),
+                resolver: resolver,
+                sqliteProcessTimeout: 0.2)
+            throw SelfTestError.failed("wedged sqlite3 backup should time out")
+        } catch CrawlDatabaseBackupError.timedOut {
+            try Self.expect(Date().timeIntervalSince(startedAt) < 2.5, "backup timeout kills sqlite3 promptly")
+        }
     }
 
     static func testRedactorScrubsSecrets() throws {
