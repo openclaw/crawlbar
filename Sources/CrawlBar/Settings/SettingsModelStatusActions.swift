@@ -12,7 +12,7 @@ extension CrawlBarSettingsModel {
         let registry = self.registry
         let statusService = self.statusService
         self.refreshTask = Task.detached {
-            let installations = (try? registry.installationsForStatus(includeDisabled: true)) ?? []
+            let installations = (try? registry.installations(includeDisabled: true)) ?? []
             let appConfigsByID = Dictionary(uniqueKeysWithValues: appsForStatus.map { ($0.id, $0) })
             let statusInstallations = CrawlBarCrawlerClassifier.statusInstallations(
                 installations,
@@ -39,7 +39,10 @@ extension CrawlBarSettingsModel {
                         guard !Task.isCancelled else {
                             return CrawlAppStatus(appID: installation.id, state: .unknown, summary: "Refresh cancelled")
                         }
-                        return statusService.status(for: installation, timeoutSeconds: 5)
+                        return statusService.status(
+                            for: installation,
+                            configValues: registry.statusConfigValues(for: installation),
+                            timeoutSeconds: 5)
                     }
                 }
                 for await status in group {
@@ -68,12 +71,16 @@ extension CrawlBarSettingsModel {
         let logStore = self.logStore
         let registry = self.registry
         Task.detached {
-            let actionInstallation = (try? registry.installation(for: appID, includeSecrets: true)) ?? installation
+            let actionConfigValues = registry.executionConfigValues(for: installation)
             let message: String
             var actionError: CrawlAppStatus?
             do {
                 CrawlBarLog.actions.notice("Running \(action, privacy: .public) for \(appID.rawValue, privacy: .public) from settings")
-                let result = try runner.run(installation: actionInstallation, action: action, timeoutSeconds: 600)
+                let result = try runner.run(
+                    installation: installation,
+                    configValues: actionConfigValues,
+                    action: action,
+                    timeoutSeconds: 600)
                 _ = try? logStore.save(result)
                 message = result.exitCode == 0
                     ? "\(Self.actionTitle(action)) finished"
@@ -89,7 +96,10 @@ extension CrawlBarSettingsModel {
                 message = error.localizedDescription
                 actionError = Self.actionFailureStatus(appID: appID, action: action, message: error.localizedDescription)
             }
-            let refreshedStatus = statusService.status(for: actionInstallation, timeoutSeconds: 5)
+            let refreshedStatus = statusService.status(
+                for: installation,
+                configValues: registry.statusConfigValues(for: installation),
+                timeoutSeconds: 5)
             await MainActor.run {
                 let status = actionError.map {
                     Self.actionFailureStatus($0, refreshedStatus: refreshedStatus, currentStatus: self.statuses[appID])

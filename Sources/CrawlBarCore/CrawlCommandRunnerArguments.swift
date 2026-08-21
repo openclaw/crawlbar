@@ -29,23 +29,32 @@ extension CrawlCommandRunner {
         return commandArguments + extraArguments
     }
 
-    static func interpolatedArguments(_ arguments: [String], installation: CrawlAppInstallation) throws -> [String] {
+    static func interpolatedArguments(
+        _ arguments: [String],
+        installation: CrawlAppInstallation,
+        configValues: [String: String])
+        throws -> [String]
+    {
         var result: [String] = []
         for argument in arguments {
             if let optionID = Self.exactConfigTokenID(argument),
-               Self.configValue(optionID, installation: installation) == nil,
+               Self.configValue(optionID, installation: installation, configValues: configValues) == nil,
                result.last == "--account"
             {
                 result.removeLast()
                 continue
             }
-            result.append(try Self.interpolatedArgument(argument, installation: installation))
+            result.append(try Self.interpolatedArgument(
+                argument,
+                installation: installation,
+                configValues: configValues))
         }
         return result
     }
 
     static func sshArguments(
         for installation: CrawlAppInstallation,
+        configValues: [String: String],
         remoteArguments: [String],
         remoteBinaryOverride: String? = nil)
         throws -> [String]
@@ -54,7 +63,11 @@ extension CrawlCommandRunner {
             return remoteArguments
         }
         let targetOptionID = execution.targetConfigID?.nilIfBlank ?? "remote_target"
-        guard let target = Self.configValue(targetOptionID, installation: installation) else {
+        guard let target = Self.configValue(
+            targetOptionID,
+            installation: installation,
+            configValues: configValues)
+        else {
             throw CrawlCommandRunnerError.missingRequiredConfig(appID: installation.id, optionID: targetOptionID)
         }
         guard !target.hasPrefix("-"), !target.contains(where: { $0.isWhitespace }) else {
@@ -66,10 +79,13 @@ extension CrawlCommandRunner {
             ?? installation.manifest.binary.name
         var commandParts = [remoteBinary] + remoteArguments
         let envFile = execution.remoteEnvFileConfigID
-            .flatMap { Self.configValue($0, installation: installation) }
+            .flatMap { Self.configValue($0, installation: installation, configValues: configValues) }
         let userCommand = Self.remoteShellCommand(commandParts: commandParts, envFile: envFile)
         if let runAsOptionID = execution.runAsConfigID?.nilIfBlank,
-           let runAs = Self.configValue(runAsOptionID, installation: installation)
+           let runAs = Self.configValue(
+               runAsOptionID,
+               installation: installation,
+               configValues: configValues)
         {
             guard !runAs.hasPrefix("-"), !runAs.contains(where: { $0.isWhitespace }) else {
                 throw CrawlCommandRunnerError.invalidRemoteTarget(appID: installation.id, target: runAs)
@@ -83,9 +99,14 @@ extension CrawlCommandRunner {
         return ["--", target, commandParts.map(Self.shellQuoted).joined(separator: " ")]
     }
 
-    static func commandOverride(for installation: CrawlAppInstallation, action: String) -> [String]? {
+    static func commandOverride(
+        for installation: CrawlAppInstallation,
+        configValues: [String: String],
+        action: String)
+        -> [String]?
+    {
         guard installation.id == BuiltInCrawlApps.birdclawID,
-              Self.xAccessPath(for: installation) == "birdclaw"
+              Self.xAccessPath(for: installation, configValues: configValues) == "birdclaw"
         else { return nil }
         switch action {
         case "status", "doctor":
@@ -97,15 +118,26 @@ extension CrawlCommandRunner {
         }
     }
 
-    static func effectiveBinaryName(for installation: CrawlAppInstallation) -> String {
+    static func effectiveBinaryName(
+        for installation: CrawlAppInstallation,
+        configValues: [String: String])
+        -> String
+    {
         guard installation.id == BuiltInCrawlApps.birdclawID else {
             return installation.manifest.binary.name
         }
-        return Self.xAccessPath(for: installation) == "birdclaw" ? "birdclaw" : "bird"
+        return Self.xAccessPath(for: installation, configValues: configValues) == "birdclaw"
+            ? "birdclaw"
+            : "bird"
     }
 
-    static func configValue(_ optionID: String, installation: CrawlAppInstallation) -> String? {
-        if let value = installation.configValues[optionID]?.nilIfBlank {
+    static func configValue(
+        _ optionID: String,
+        installation: CrawlAppInstallation,
+        configValues: [String: String])
+        -> String?
+    {
+        if let value = configValues[optionID]?.nilIfBlank {
             return value
         }
         return installation.manifest.configOptions.first { $0.id == optionID }?.defaultValue?.nilIfBlank
@@ -117,12 +149,21 @@ extension CrawlCommandRunner {
         return optionID.isEmpty ? nil : optionID
     }
 
-    private static func interpolatedArgument(_ argument: String, installation: CrawlAppInstallation) throws -> String {
+    private static func interpolatedArgument(
+        _ argument: String,
+        installation: CrawlAppInstallation,
+        configValues: [String: String])
+        throws -> String
+    {
         var value = argument
         while let range = value.range(of: #"\{config:([A-Za-z0-9_.-]+)\}"#, options: .regularExpression) {
             let token = String(value[range])
             let optionID = String(token.dropFirst("{config:".count).dropLast())
-            guard let replacement = Self.configValue(optionID, installation: installation) else {
+            guard let replacement = Self.configValue(
+                optionID,
+                installation: installation,
+                configValues: configValues)
+            else {
                 throw CrawlCommandRunnerError.missingRequiredConfig(appID: installation.id, optionID: optionID)
             }
             value.replaceSubrange(range, with: replacement)
@@ -142,8 +183,15 @@ extension CrawlCommandRunner {
         "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
     }
 
-    private static func xAccessPath(for installation: CrawlAppInstallation) -> String {
-        (Self.configValue("access_path", installation: installation) ?? "bird")
+    private static func xAccessPath(
+        for installation: CrawlAppInstallation,
+        configValues: [String: String])
+        -> String
+    {
+        (Self.configValue(
+            "access_path",
+            installation: installation,
+            configValues: configValues) ?? "bird")
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
     }

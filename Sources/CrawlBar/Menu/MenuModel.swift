@@ -93,7 +93,7 @@ final class CrawlBarMenuModel: NSObject {
         let statusService = self.statusService
         let appConfigs = self.appConfigs
         self.refreshTask = Task.detached {
-            let installations = (try? registry.installationsForStatus(includeDisabled: true)) ?? []
+            let installations = (try? registry.installations(includeDisabled: true)) ?? []
             let statusInstallations = CrawlBarCrawlerClassifier.statusInstallations(
                 installations,
                 appConfigsByID: appConfigs)
@@ -119,7 +119,10 @@ final class CrawlBarMenuModel: NSObject {
                         guard !Task.isCancelled else {
                             return CrawlAppStatus(appID: installation.id, state: .unknown, summary: "Refresh cancelled")
                         }
-                        return statusService.status(for: installation, timeoutSeconds: 5)
+                        return statusService.status(
+                            for: installation,
+                            configValues: registry.statusConfigValues(for: installation),
+                            timeoutSeconds: 5)
                     }
                 }
                 for await status in group {
@@ -162,12 +165,15 @@ final class CrawlBarMenuModel: NSObject {
         let logStore = self.logStore
         Task.detached {
             let updates = dueInstallations.map { installation -> CrawlActionStatusUpdate in
-                let actionInstallation = (try? registry.installation(for: installation.id, includeSecrets: true)) ?? installation
-                let statusInstallation = (try? registry.installationForStatus(for: installation.id)) ?? installation
+                let actionConfigValues = registry.executionConfigValues(for: installation)
+                let statusConfigValues = registry.statusConfigValues(for: installation)
 
                 func failureUpdate(_ failure: CrawlAppStatus) -> CrawlActionStatusUpdate {
                     CrawlActionStatusUpdate(
-                        status: statusService.status(for: statusInstallation, timeoutSeconds: 5),
+                        status: statusService.status(
+                            for: installation,
+                            configValues: statusConfigValues,
+                            timeoutSeconds: 5),
                         actionFailure: failure)
                 }
 
@@ -175,7 +181,11 @@ final class CrawlBarMenuModel: NSObject {
                     let refreshAction = config.preferredRefreshAction ?? "refresh"
                     do {
                         CrawlBarLog.actions.notice("Running scheduled \(refreshAction, privacy: .public) for \(installation.id.rawValue, privacy: .public)")
-                        let result = try runner.run(installation: actionInstallation, action: refreshAction, timeoutSeconds: 600)
+                        let result = try runner.run(
+                            installation: installation,
+                            configValues: actionConfigValues,
+                            action: refreshAction,
+                            timeoutSeconds: 600)
                         _ = try? logStore.save(result)
                         if !result.succeeded {
                             CrawlBarLog.actions.error(
@@ -194,7 +204,11 @@ final class CrawlBarMenuModel: NSObject {
                         let shareAction = config.preferredShareAction ?? "publish"
                         do {
                             CrawlBarLog.actions.notice("Running scheduled \(shareAction, privacy: .public) for \(installation.id.rawValue, privacy: .public)")
-                            let result = try runner.run(installation: actionInstallation, action: shareAction, timeoutSeconds: 600)
+                            let result = try runner.run(
+                                installation: installation,
+                                configValues: actionConfigValues,
+                                action: shareAction,
+                                timeoutSeconds: 600)
                             _ = try? logStore.save(result)
                             if !result.succeeded {
                                 CrawlBarLog.actions.error(
@@ -212,7 +226,10 @@ final class CrawlBarMenuModel: NSObject {
                     }
                 }
                 return CrawlActionStatusUpdate(
-                    status: statusService.status(for: statusInstallation, timeoutSeconds: 5),
+                    status: statusService.status(
+                        for: installation,
+                        configValues: statusConfigValues,
+                        timeoutSeconds: 5),
                     actionFailure: nil)
             }
             await MainActor.run {

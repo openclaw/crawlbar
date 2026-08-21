@@ -11,6 +11,10 @@ extension CrawlBarSelfTest {
         let scriptURL = directory.appendingPathComponent("print-env.sh")
         try Data("""
         #!/bin/sh
+        if [ "$1" = "secret" ]; then
+          printf '%s' "$CRAWLBAR_TEST_SECRET"
+          exit 0
+        fi
         if [ "$#" -gt 0 ]; then
           printf '%s|%s' "$CRAWLBAR_TEST_VALUE" "$*"
         else
@@ -26,10 +30,11 @@ extension CrawlBarSelfTest {
             binary: .init(name: scriptURL.path),
             branding: .init(symbolName: "terminal", accentColor: "#123456"),
             paths: .init(),
-            commands: ["status": [], "query": ["query"]],
+            commands: ["status": [], "query": ["query"], "secret": ["secret"]],
             capabilities: [.status],
             configOptions: [
                 .init(id: "test_value", label: "Test Value", envVar: "CRAWLBAR_TEST_VALUE"),
+                .init(id: "secret_value", label: "Secret Value", kind: .secret, envVar: "CRAWLBAR_TEST_SECRET"),
             ])
         let installation = CrawlAppInstallation(
             manifest: manifest,
@@ -37,6 +42,18 @@ extension CrawlBarSelfTest {
             configValues: ["test_value": "from-config"])
         let result = try CrawlCommandRunner().run(installation: installation, action: "status", timeoutSeconds: 5)
         try Self.expect(result.stdout == "from-config", "config values reach crawler command environment")
+        let secret = "opaque-value-\(UUID().uuidString)"
+        let secretResult = try CrawlCommandRunner().run(
+            installation: installation,
+            configValues: installation.configValues.merging(["secret_value": secret]) { _, explicit in explicit },
+            action: "secret",
+            timeoutSeconds: 5)
+        try Self.expect(installation.configValues["secret_value"] == nil, "installation state remains secret-free")
+        try Self.expect(secretResult.stdout == "[REDACTED]", "explicit command secrets redact from output")
+        let logStore = CrawlActionLogStore(directoryURL: directory.appendingPathComponent("logs"))
+        let logURL = try logStore.save(secretResult)
+        let persisted = try String(contentsOf: logURL, encoding: .utf8)
+        try Self.expect(!persisted.contains(secret), "explicit command secrets stay out of action logs")
         let queryResult = try CrawlCommandRunner().run(
             installation: installation,
             action: "query",

@@ -4,7 +4,17 @@ public struct CrawlCommandRedactor: Sendable {
     public init() {}
 
     public func redact(_ text: String) -> String {
+        self.redact(text, maskedValues: [])
+    }
+
+    package func redact(_ text: String, maskedValues: [String]) -> String {
         var redacted = text
+        // Opaque credentials may not match a token-shaped pattern, so mask injected values first.
+        let explicitValues = Set(maskedValues.compactMap(\.nilIfBlank))
+            .sorted { $0.count > $1.count }
+        for valueToMask in explicitValues {
+            redacted = redacted.replacingOccurrences(of: valueToMask, with: "[REDACTED]")
+        }
         let patterns: [(String, String)] = [
             (#"(?i)(Bearer[ \t]+)[^ \t\r\n"',}]+"#, "$1[REDACTED]"),
             (#"(?i)(api[_-]?key|token|secret|password|cookie|authorization)(["' \t:=]+)([^ \t\r\n"',}]+)"#, "$1$2[REDACTED]"),
