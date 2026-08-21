@@ -13,14 +13,33 @@ public struct CrawlStatusService: @unchecked Sendable {
     }
 
     public func status(for installation: CrawlAppInstallation, timeoutSeconds: TimeInterval = 30) -> CrawlAppStatus {
+        self.status(
+            for: installation,
+            configValues: installation.configValues,
+            timeoutSeconds: timeoutSeconds)
+    }
+
+    package func status(
+        for installation: CrawlAppInstallation,
+        configValues: [String: String],
+        timeoutSeconds: TimeInterval = 30)
+        -> CrawlAppStatus
+    {
         if let status = self.immediateStatus(for: installation) {
             return status
         }
         if installation.id == BuiltInCrawlApps.gogcliID {
-            return self.gogcliStatus(for: installation, timeoutSeconds: timeoutSeconds)
+            return self.gogcliStatus(
+                for: installation,
+                configValues: configValues,
+                timeoutSeconds: timeoutSeconds)
         }
         do {
-            let result = try self.runner.run(installation: installation, action: "status", timeoutSeconds: timeoutSeconds)
+            let result = try self.runner.run(
+                installation: installation,
+                configValues: configValues,
+                action: "status",
+                timeoutSeconds: timeoutSeconds)
             return self.mapper.status(
                 from: result,
                 manifest: installation.manifest,
@@ -50,9 +69,18 @@ public struct CrawlStatusService: @unchecked Sendable {
         return GitcrawlStatusSnapshot.status(for: installation)
     }
 
-    private func gogcliStatus(for installation: CrawlAppInstallation, timeoutSeconds: TimeInterval) -> CrawlAppStatus {
+    private func gogcliStatus(
+        for installation: CrawlAppInstallation,
+        configValues: [String: String],
+        timeoutSeconds: TimeInterval)
+        -> CrawlAppStatus
+    {
         do {
-            let statusResult = try self.runner.run(installation: installation, action: "status", timeoutSeconds: timeoutSeconds)
+            let statusResult = try self.runner.run(
+                installation: installation,
+                configValues: configValues,
+                action: "status",
+                timeoutSeconds: timeoutSeconds)
             let status = self.mapper.status(
                 from: statusResult,
                 manifest: installation.manifest,
@@ -60,7 +88,11 @@ public struct CrawlStatusService: @unchecked Sendable {
             if status.state == .current {
                 return status
             }
-            let doctorResult = try self.runner.run(installation: installation, action: "doctor", timeoutSeconds: timeoutSeconds)
+            let doctorResult = try self.runner.run(
+                installation: installation,
+                configValues: configValues,
+                action: "doctor",
+                timeoutSeconds: timeoutSeconds)
             return self.mapper.status(
                 from: doctorResult,
                 manifest: installation.manifest,

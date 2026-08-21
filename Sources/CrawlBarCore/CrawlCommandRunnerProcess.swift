@@ -12,6 +12,7 @@ extension CrawlCommandRunner {
         executablePath: String,
         arguments: [String],
         environment: [String: String],
+        maskedValues: [String],
         timeoutSeconds: TimeInterval)
         throws -> CrawlCommandResult
     {
@@ -73,8 +74,8 @@ extension CrawlCommandRunner {
             appID: appID,
             action: action,
             exitCode: process.terminationStatus,
-            stdout: self.redactor.redact(stdout),
-            stderr: self.redactor.redact(stderr),
+            stdout: self.redactor.redact(stdout, maskedValues: maskedValues),
+            stderr: self.redactor.redact(stderr, maskedValues: maskedValues),
             startedAt: startedAt,
             finishedAt: Date())
     }

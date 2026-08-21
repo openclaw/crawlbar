@@ -324,11 +324,15 @@ extension CrawlBarSelfTest {
         let registry = CrawlAppRegistry(configStore: store)
 
         guard let plain = try registry.installation(for: manifest.id, includeSecrets: false),
-              let status = try registry.installationForStatus(for: manifest.id)
+              let legacyStatus = try registry.installationForStatus(for: manifest.id)
         else {
             throw SelfTestError.failed("status secret crawler loads")
         }
+        let statusConfigValues = registry.statusConfigValues(for: plain)
         try Self.expect(plain.configValues["token"] == nil, "plain installation omits native secret")
-        try Self.expect(status.configValues["token"] == "from-native", "status installation rehydrates native secret")
+        try Self.expect(statusConfigValues["token"] == "from-native", "status execution config rehydrates native secret")
+        try Self.expect(
+            legacyStatus.configValues["token"] == "from-native",
+            "shipped status installation API preserves secret hydration")
     }
 }

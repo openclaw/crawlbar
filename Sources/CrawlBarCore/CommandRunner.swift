@@ -27,20 +27,44 @@ public struct CrawlCommandRunner: @unchecked Sendable {
         timeoutSeconds: TimeInterval = 120)
         throws -> CrawlCommandResult
     {
-        guard var arguments = Self.commandOverride(for: installation, action: action)
+        try self.run(
+            installation: installation,
+            configValues: installation.configValues,
+            action: action,
+            extraArguments: extraArguments,
+            timeoutSeconds: timeoutSeconds)
+    }
+
+    package func run(
+        installation: CrawlAppInstallation,
+        configValues: [String: String],
+        action: String,
+        extraArguments: [String] = [],
+        timeoutSeconds: TimeInterval = 120)
+        throws -> CrawlCommandResult
+    {
+        guard var arguments = Self.commandOverride(
+            for: installation,
+            configValues: configValues,
+            action: action)
             ?? installation.manifest.commands[action]
         else {
             throw CrawlCommandRunnerError.commandUnavailable(appID: installation.id, action: action)
         }
-        arguments = try Self.interpolatedArguments(arguments, installation: installation)
+        arguments = try Self.interpolatedArguments(
+            arguments,
+            installation: installation,
+            configValues: configValues)
         arguments = Self.commandArguments(
             for: installation,
             action: action,
             commandArguments: arguments,
             extraArguments: extraArguments)
 
-        let executionKind = installation.manifest.executionKind(configValues: installation.configValues)
-        let effectiveBinaryName = Self.effectiveBinaryName(for: installation)
+        let executionKind = installation.manifest.executionKind(configValues: configValues)
+        let effectiveBinaryName = Self.effectiveBinaryName(
+            for: installation,
+            configValues: configValues)
         let executableName: String
         if executionKind == .ssh {
             executableName = "ssh"
@@ -61,7 +85,7 @@ public struct CrawlCommandRunner: @unchecked Sendable {
         }
         for option in installation.manifest.configOptions {
             guard let envName = option.envVar?.nilIfBlank,
-                  let value = installation.configValues[option.id]?.nilIfBlank
+                  let value = configValues[option.id]?.nilIfBlank
             else { continue }
             commandEnvironment[envName] = value
         }
@@ -72,16 +96,21 @@ public struct CrawlCommandRunner: @unchecked Sendable {
                 : effectiveBinaryName
             arguments = try Self.sshArguments(
                 for: installation,
+                configValues: configValues,
                 remoteArguments: arguments,
                 remoteBinaryOverride: remoteBinaryOverride)
         }
 
+        let maskedValues = installation.manifest.configOptions
+            .filter { $0.kind == .secret }
+            .compactMap { configValues[$0.id]?.nilIfBlank }
         return try self.runProcess(
             appID: installation.id,
             action: action,
             executablePath: executablePath,
             arguments: arguments,
             environment: commandEnvironment,
+            maskedValues: maskedValues,
             timeoutSeconds: timeoutSeconds)
     }
 }

@@ -2,6 +2,10 @@
 
 ## v0.4.2 - Unreleased
 
+### Fixes
+
+- Keep crawler credentials out of app and CLI installation state while still passing them to the commands that need them.
+
 ## v0.4.1 - 2026-07-09
 
 ### Changes

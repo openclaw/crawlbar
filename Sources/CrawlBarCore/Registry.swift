@@ -88,6 +88,30 @@ public struct CrawlAppRegistry: @unchecked Sendable {
         try self.installations(includeDisabled: false, includeSecrets: includeSecrets).filter { $0.binaryPath != nil }
     }
 
+    package func executionConfigValues(for installation: CrawlAppInstallation) -> [String: String] {
+        // Keep credentials separate from installation metadata so UI and log identities stay secret-free.
+        let appConfig = CrawlBarAppConfig(
+            id: installation.id,
+            enabled: installation.enabled,
+            configPath: installation.configPathOverride,
+            configValues: installation.configValues)
+        let nativeConfig = self.appConfigWithNativeValues(
+            appConfig,
+            manifest: installation.manifest,
+            includeSecrets: true)
+        return self.configStore
+            .appConfigWithSecrets(nativeConfig, manifest: installation.manifest)
+            .configValues
+    }
+
+    package func statusConfigValues(for installation: CrawlAppInstallation) -> [String: String] {
+        guard installation.enabled,
+              installation.binaryPath != nil,
+              installation.manifest.needsSecretsForStatus
+        else { return installation.configValues }
+        return self.executionConfigValues(for: installation)
+    }
+
     public func appConfigWithNativeValues(
         _ appConfig: CrawlBarAppConfig,
         manifest: CrawlAppManifest,
@@ -103,21 +127,11 @@ public struct CrawlAppRegistry: @unchecked Sendable {
     }
 
     private func installationWithSecrets(_ installation: CrawlAppInstallation) -> CrawlAppInstallation {
-        let appConfig = CrawlBarAppConfig(
-            id: installation.id,
-            enabled: installation.enabled,
-            configPath: installation.configPathOverride,
-            configValues: installation.configValues)
-        let nativeConfig = self.appConfigWithNativeValues(
-            appConfig,
-            manifest: installation.manifest,
-            includeSecrets: true)
-        let secretConfig = self.configStore.appConfigWithSecrets(nativeConfig, manifest: installation.manifest)
         return CrawlAppInstallation(
             manifest: installation.manifest,
             binaryPath: installation.binaryPath,
             configPathOverride: installation.configPathOverride,
-            configValues: secretConfig.configValues,
+            configValues: self.executionConfigValues(for: installation),
             staleAfterSeconds: installation.staleAfterSeconds,
             enabled: installation.enabled)
     }

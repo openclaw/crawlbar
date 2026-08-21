@@ -128,10 +128,13 @@ enum CrawlBarCLI {
         throws
     {
         let requestedID = options.appID
-        let installations = try registry.installationsForStatus(includeDisabled: true)
+        let installations = try registry.installations(includeDisabled: true)
             .filter { requestedID == nil || requestedID == CrawlAppID(rawValue: "all") || $0.id == requestedID }
         let statuses = installations.map { installation -> CrawlAppStatus in
-            statusService.status(for: installation, timeoutSeconds: 30)
+            statusService.status(
+                for: installation,
+                configValues: registry.statusConfigValues(for: installation),
+                timeoutSeconds: 30)
         }
 
         if options.json {
@@ -151,7 +154,7 @@ enum CrawlBarCLI {
         appID: CrawlAppID)
         throws
     {
-        guard let installation = try registry.installation(for: appID, includeSecrets: true) else {
+        guard let installation = try registry.installation(for: appID) else {
             throw CLIError.usage("unknown app: \(appID.rawValue)")
         }
         guard installation.enabled else {
@@ -160,7 +163,11 @@ enum CrawlBarCLI {
         guard installation.binaryPath != nil else {
             throw CLIError.usage("\(installation.manifest.binary.name) is not on PATH")
         }
-        let result = try runner.run(installation: installation, action: action, timeoutSeconds: 600)
+        let result = try runner.run(
+            installation: installation,
+            configValues: registry.executionConfigValues(for: installation),
+            action: action,
+            timeoutSeconds: 600)
         _ = try? CrawlActionLogStore().save(result)
         if json {
             try CLIOutput.writeJSON(result)
@@ -182,7 +189,7 @@ enum CrawlBarCLI {
         appID: CrawlAppID)
         throws
     {
-        guard let installation = try registry.installationForStatus(for: appID) else {
+        guard let installation = try registry.installation(for: appID) else {
             throw CLIError.usage("unknown app: \(appID.rawValue)")
         }
         guard installation.manifest.availability == .available else {
@@ -332,10 +339,13 @@ enum CrawlBarCLI {
         statusService: CrawlStatusService)
         throws -> CrawlAppStatus
     {
-        guard let installation = try registry.installationForStatus(for: appID) else {
+        guard let installation = try registry.installation(for: appID) else {
             throw CLIError.usage("unknown app: \(appID.rawValue)")
         }
-        return statusService.status(for: installation, timeoutSeconds: 30)
+        return statusService.status(
+            for: installation,
+            configValues: registry.statusConfigValues(for: installation),
+            timeoutSeconds: 30)
     }
 
     private static func printHelp() {
