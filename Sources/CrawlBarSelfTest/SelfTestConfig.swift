@@ -290,17 +290,18 @@ extension CrawlBarSelfTest {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
 
+        let secret = "opaque-native-\(UUID().uuidString)"
         let scriptURL = directory.appendingPathComponent("secret-status.sh")
         try Data("""
         #!/bin/sh
-        printf '{"state":"ok"}'
+        printf '%s' "$STATUS_SECRET_TOKEN"
         """.utf8).write(to: scriptURL)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
 
         let nativeConfigURL = directory.appendingPathComponent("status.toml")
         try Data("""
         [auth]
-        token = "from-native"
+        token = "\(secret)"
         """.utf8).write(to: nativeConfigURL)
 
         let manifest = CrawlAppManifest(
@@ -330,9 +331,18 @@ extension CrawlBarSelfTest {
         }
         let statusConfigValues = registry.statusConfigValues(for: plain)
         try Self.expect(plain.configValues["token"] == nil, "plain installation omits native secret")
-        try Self.expect(statusConfigValues["token"] == "from-native", "status execution config rehydrates native secret")
+        try Self.expect(statusConfigValues["token"] == secret, "status execution config rehydrates native secret")
         try Self.expect(
-            legacyStatus.configValues["token"] == "from-native",
+            legacyStatus.configValues["token"] == secret,
             "shipped status installation API preserves secret hydration")
+        let result = try CrawlCommandRunner().run(
+            installation: plain,
+            configValues: statusConfigValues,
+            action: "status",
+            timeoutSeconds: 5)
+        try Self.expect(result.stdout == "[REDACTED]", "registry-hydrated native secret redacts from command output")
+        let logURL = try CrawlActionLogStore(directoryURL: directory.appendingPathComponent("logs")).save(result)
+        let persisted = try String(contentsOf: logURL, encoding: .utf8)
+        try Self.expect(!persisted.contains(secret), "registry-hydrated native secret stays out of action logs")
     }
 }
