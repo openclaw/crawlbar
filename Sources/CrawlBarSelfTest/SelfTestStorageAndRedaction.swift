@@ -47,7 +47,9 @@ extension CrawlBarSelfTest {
         try Self.expect(
             unsafeURL.deletingLastPathComponent().standardizedFileURL == directory.standardizedFileURL,
             "unsafe action log identifiers stay inside the log directory")
-        try Self.expect(!unsafeURL.lastPathComponent.contains("/"), "unsafe action log identifiers are filename-safe")
+        try Self.expect(
+            !unsafeURL.lastPathComponent.contains("unsafe") && !unsafeURL.lastPathComponent.contains("refresh"),
+            "action log filenames do not expose command identifiers")
 
         let successfulJSONResult = CrawlCommandResult(
             appID: BuiltInCrawlApps.graincrawlID,

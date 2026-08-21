@@ -16,15 +16,9 @@ public struct CrawlActionLogStore: @unchecked Sendable {
         if !self.fileManager.fileExists(atPath: self.directoryURL.path) {
             try self.fileManager.createDirectory(at: self.directoryURL, withIntermediateDirectories: true)
         }
-        let timestamp = ISO8601DateFormatter.crawlBarFormatter()
-            .string(from: result.finishedAt)
-            .replacingOccurrences(of: ":", with: "-")
-        let filename = [
-            Self.safeFilenameComponent(result.appID.rawValue, fallback: "app"),
-            Self.safeFilenameComponent(result.action, fallback: "action"),
-            timestamp,
-            UUID().uuidString,
-        ].joined(separator: "-") + ".json"
+        // Command results may derive from secret-bearing execution state.
+        // Opaque names keep result fields out of filesystem metadata.
+        let filename = UUID().uuidString + ".json"
         let url = self.directoryURL.appendingPathComponent(filename)
         let data = try CrawlCoding.makeJSONEncoder().encode(result)
         try data.write(to: url, options: [.atomic])
@@ -69,14 +63,4 @@ public struct CrawlActionLogStore: @unchecked Sendable {
         ((try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate) ?? .distantPast
     }
 
-    private static func safeFilenameComponent(_ value: String, fallback: String) -> String {
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
-        let scalars = value.unicodeScalars.map { scalar -> Character in
-            allowed.contains(scalar) ? Character(scalar) : "-"
-        }
-        let safe = String(scalars)
-            .split(separator: "-", omittingEmptySubsequences: true)
-            .joined(separator: "-")
-        return safe.nilIfBlank ?? fallback
-    }
 }
