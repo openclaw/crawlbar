@@ -27,6 +27,8 @@ enum CrawlBarSelfTest {
         try Self.testGitcrawlCommandArgumentsInferRepository()
         try Self.testCommandTimeoutEscalates()
         try Self.testProcessWaitTimesOut()
+        try Self.testInstallerTimesOutWedgedBrew()
+        try Self.testTimeoutTeardownUsesProcessWait()
         try Self.testDatabaseBackupCopiesFiles()
         try Self.testDatabaseBackupTimesOutWedgedSqlite()
         try Self.testRedactorScrubsSecrets()
