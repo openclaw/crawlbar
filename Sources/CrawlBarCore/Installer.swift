@@ -1,9 +1,4 @@
 import Foundation
-#if os(macOS)
-import Darwin
-#elseif os(Linux)
-import Glibc
-#endif
 
 public enum CrawlInstallerError: LocalizedError, Sendable {
     case installUnavailable(CrawlAppID)
@@ -26,8 +21,6 @@ public enum CrawlInstallerError: LocalizedError, Sendable {
 }
 
 public struct CrawlInstaller: @unchecked Sendable {
-    private static let timeoutTerminationGrace: DispatchTimeInterval = .milliseconds(500)
-
     private let resolver: CrawlExecutableResolver
     private let redactor: CrawlCommandRedactor
     private let environment: [String: String]
@@ -92,22 +85,8 @@ public struct CrawlInstaller: @unchecked Sendable {
         process.standardOutput = stdoutHandle
         process.standardError = stderrHandle
 
-        let semaphore = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in semaphore.signal() }
-
         try process.run()
-        let waitResult = semaphore.wait(timeout: .now() + timeoutSeconds)
-        if waitResult == .timedOut {
-            process.terminate()
-            #if os(macOS) || os(Linux)
-            let pid = process.processIdentifier
-            DispatchQueue.global().asyncAfter(deadline: .now() + Self.timeoutTerminationGrace) {
-                if process.isRunning {
-                    kill(pid, SIGKILL)
-                }
-            }
-            #endif
-            process.waitUntilExit()
+        if CrawlProcessWait.waitUntilExit(process, timeoutSeconds: timeoutSeconds) == .timedOut {
             throw CrawlCommandRunnerError.timedOut(appID: appID, action: "install", seconds: Int(timeoutSeconds))
         }
 

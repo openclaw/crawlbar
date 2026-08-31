@@ -161,6 +161,60 @@ extension CrawlBarSelfTest {
         try Self.expect(kill(pid, 0) == -1 && errno == ESRCH, "timed-out child pid is gone")
     }
 
+    static func testInstallerTimesOutWedgedBrew() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("crawlbar-install-timeout-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let brew = directory.appendingPathComponent("brew")
+        try Data("""
+        #!/bin/sh
+        trap '' TERM
+        exec /bin/sleep 5
+        """.utf8).write(to: brew)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: brew.path)
+
+        var environment = ProcessInfo.processInfo.environment
+        environment["PATH"] = "\(directory.path):\(environment["PATH"] ?? "")"
+        let installer = CrawlInstaller(
+            resolver: CrawlExecutableResolver(environment: environment),
+            environment: environment)
+        let manifest = CrawlAppManifest(
+            id: CrawlAppID(rawValue: "installtimeout"),
+            displayName: "Install Timeout",
+            description: "A timeout test installer",
+            binary: .init(name: "installtimeout"),
+            branding: .init(symbolName: "timer", accentColor: "#123456"),
+            paths: .init(),
+            commands: [:],
+            capabilities: [],
+            install: .init(method: .homebrew, package: "installtimeout"))
+        let startedAt = Date()
+        do {
+            _ = try installer.install(CrawlAppInstallation(manifest: manifest), timeoutSeconds: 0.1)
+            throw SelfTestError.failed("wedged brew install should time out")
+        } catch CrawlCommandRunnerError.timedOut {
+            try Self.expect(Date().timeIntervalSince(startedAt) < 2.5, "install timeout kills brew promptly")
+        }
+    }
+
+    static func testTimeoutTeardownUsesProcessWait() throws {
+        let core = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("CrawlBarCore")
+        for name in ["CrawlCommandRunnerProcess.swift", "Installer.swift"] {
+            let text = try String(contentsOf: core.appendingPathComponent(name), encoding: .utf8)
+            try Self.expect(
+                text.contains("CrawlProcessWait.waitUntilExit"),
+                "\(name) waits through CrawlProcessWait")
+            try Self.expect(
+                !text.contains("process.waitUntilExit()"),
+                "\(name) does not call unbounded Process.waitUntilExit")
+        }
+    }
+
     static func testDatabaseBackupCopiesFiles() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("crawlbar-backup-\(UUID().uuidString)", isDirectory: true)

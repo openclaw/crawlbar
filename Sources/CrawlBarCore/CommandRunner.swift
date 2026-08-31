@@ -1,8 +1,6 @@
 import Foundation
 
 public struct CrawlCommandRunner: @unchecked Sendable {
-    static let timeoutTerminationGrace: DispatchTimeInterval = .milliseconds(500)
-
     let resolver: CrawlExecutableResolver
     let redactor: CrawlCommandRedactor
     let fileManager: FileManager
