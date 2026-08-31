@@ -2,6 +2,12 @@
 
 ## v0.4.2 - Unreleased
 
+### Fixes
+
+- Keep crawler credentials out of UI/CLI installation state and redact echoed credentials before command output or action-log persistence. Thanks @vincentkoc.
+- Bound crawler-command and Homebrew-install timeout teardown so actions return when process termination fails. Thanks @SebTardif.
+- Bound SQLite backup process waits to 600 seconds so wedged backups return a timeout instead of hanging Settings or the CLI. Thanks @SebTardif.
+
 ## v0.4.1 - 2026-07-09
 
 ### Changes
