@@ -4,6 +4,7 @@ import Foundation
 private struct CrawlActionStatusUpdate: Sendable {
     let status: CrawlAppStatus
     let actionFailure: CrawlAppStatus?
+    let generation: UInt64
 }
 
 @MainActor
@@ -20,7 +21,6 @@ final class CrawlBarMenuModel: NSObject {
     private var refreshTask: Task<Void, Never>?
     private var refreshGeneration = UUID()
     private var appConfigs: [CrawlAppID: CrawlBarAppConfig] = [:]
-    private var lastAutoSyncByAppID: [CrawlAppID: Date] = [:]
 
     override init() {
         let runner = CrawlCommandRunner()
@@ -145,108 +145,69 @@ final class CrawlBarMenuModel: NSObject {
     }
 
     func runDueAutoSync(onComplete: @escaping @MainActor () -> Void) {
-        guard !self.isRefreshing else { return }
         self.reloadInstallations()
         let now = Date()
         let dueInstallations = self.installations.filter { installation in
             guard let config = self.appConfigs[installation.id], config.enabled, config.autoRefreshEnabled else { return false }
             guard installation.enabled, installation.binaryPath != nil else { return false }
             guard let seconds = (config.refreshFrequency ?? self.refreshFrequency).seconds else { return false }
-            let last = self.lastAutoSyncByAppID[installation.id] ?? .distantPast
-            return now.timeIntervalSince(last) >= seconds
+            return CrawlActionCoordinator.shared.isDue(installation.id, interval: seconds, now: now)
         }
         guard !dueInstallations.isEmpty else { return }
 
-        self.isRefreshing = true
         let configs = self.appConfigs
+        let refreshFrequency = self.refreshFrequency
         let registry = self.registry
         let runner = self.runner
         let statusService = self.statusService
         let logStore = self.logStore
-        Task.detached {
-            let updates = dueInstallations.map { installation -> CrawlActionStatusUpdate in
-                let actionConfigValues = registry.executionConfigValues(for: installation)
-                let statusConfigValues = registry.statusConfigValues(for: installation)
-
-                func failureUpdate(_ failure: CrawlAppStatus) -> CrawlActionStatusUpdate {
-                    CrawlActionStatusUpdate(
+        for installation in dueInstallations {
+            Task.detached {
+                let update = { () -> CrawlActionStatusUpdate? in
+                    let actionConfigValues = registry.executionConfigValues(for: installation)
+                    let statusConfigValues = registry.statusConfigValues(for: installation)
+                    guard let config = configs[installation.id] else { return nil }
+                    let outcome: CrawlActionOutcome
+                    do {
+                        outcome = try CrawlActionCoordinator.shared.run(
+                            installation: installation,
+                            config: config,
+                            configValues: actionConfigValues,
+                            action: config.preferredRefreshAction ?? "refresh",
+                            scheduledInterval: (config.refreshFrequency ?? refreshFrequency).seconds,
+                            allowShare: {
+                                (try? registry.loadConfig().apps.first { $0.id == installation.id }) == config
+                            },
+                            execute: { action in
+                                try runner.run(
+                                    installation: installation, configValues: actionConfigValues,
+                                    action: action, timeoutSeconds: 600)
+                            })
+                    } catch CrawlActionCoordinatorError.busy, CrawlActionCoordinatorError.notDue {
+                        return nil
+                    } catch {
+                        CrawlBarLog.actions.error("Scheduled action could not start: \(error.localizedDescription, privacy: .public)")
+                        return nil
+                    }
+                    for result in outcome.results { _ = try? logStore.save(result) }
+                    return CrawlActionStatusUpdate(
                         status: statusService.status(
                             for: installation,
                             configValues: statusConfigValues,
                             timeoutSeconds: 5),
-                        actionFailure: failure)
-                }
-
-                if let config = configs[installation.id] {
-                    let refreshAction = config.preferredRefreshAction ?? "refresh"
-                    do {
-                        CrawlBarLog.actions.notice("Running scheduled \(refreshAction, privacy: .public) for \(installation.id.rawValue, privacy: .public)")
-                        let result = try runner.run(
-                            installation: installation,
-                            configValues: actionConfigValues,
-                            action: refreshAction,
-                            timeoutSeconds: 600)
-                        _ = try? logStore.save(result)
-                        if !result.succeeded {
-                            CrawlBarLog.actions.error(
-                                "Scheduled \(refreshAction, privacy: .public) for \(installation.id.rawValue, privacy: .public) failed with exit \(result.exitCode)")
-                            return failureUpdate(Self.actionFailureStatus(result))
-                        }
-                    } catch {
-                        CrawlBarLog.actions.error(
-                            "Scheduled \(refreshAction, privacy: .public) for \(installation.id.rawValue, privacy: .public) threw: \(error.localizedDescription, privacy: .public)")
-                        return failureUpdate(Self.actionFailureStatus(
-                            appID: installation.id,
-                            action: refreshAction,
-                            message: error.localizedDescription))
-                    }
-                    if config.shareEnabled, config.shareAfterRefresh {
-                        let shareAction = config.preferredShareAction ?? "publish"
-                        do {
-                            CrawlBarLog.actions.notice("Running scheduled \(shareAction, privacy: .public) for \(installation.id.rawValue, privacy: .public)")
-                            let result = try runner.run(
-                                installation: installation,
-                                configValues: actionConfigValues,
-                                action: shareAction,
-                                timeoutSeconds: 600)
-                            _ = try? logStore.save(result)
-                            if !result.succeeded {
-                                CrawlBarLog.actions.error(
-                                    "Scheduled \(shareAction, privacy: .public) for \(installation.id.rawValue, privacy: .public) failed with exit \(result.exitCode)")
-                                return failureUpdate(Self.actionFailureStatus(result))
-                            }
-                        } catch {
-                            CrawlBarLog.actions.error(
-                                "Scheduled \(shareAction, privacy: .public) for \(installation.id.rawValue, privacy: .public) threw: \(error.localizedDescription, privacy: .public)")
-                            return failureUpdate(Self.actionFailureStatus(
-                                appID: installation.id,
-                                action: shareAction,
-                                message: error.localizedDescription))
-                        }
-                    }
-                }
-                return CrawlActionStatusUpdate(
-                    status: statusService.status(
-                        for: installation,
-                        configValues: statusConfigValues,
-                        timeoutSeconds: 5),
-                    actionFailure: nil)
-            }
-            await MainActor.run {
-                var changedStatuses: [CrawlAppID: CrawlAppStatus] = [:]
-                for update in updates {
+                        actionFailure: outcome.failure,
+                        generation: outcome.generation)
+                }()
+                guard let update else { return }
+                await MainActor.run {
+                    guard CrawlActionCoordinator.shared.isCurrent(update.status.appID, generation: update.generation) else { return }
                     let status = update.actionFailure.map {
                         Self.actionFailureStatus($0, refreshedStatus: update.status, currentStatus: self.statuses[$0.appID])
                     } ?? update.status
                     self.statuses[status.appID] = status
-                    changedStatuses[status.appID] = status
-                    if update.actionFailure == nil, status.state != .error {
-                        self.lastAutoSyncByAppID[status.appID] = now
-                    }
+                    CrawlBarStateBroadcast.statusesDidChange([status.appID: status])
+                    onComplete()
                 }
-                CrawlBarStateBroadcast.statusesDidChange(changedStatuses)
-                self.isRefreshing = false
-                onComplete()
             }
         }
     }

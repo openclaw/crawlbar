@@ -4,6 +4,11 @@
 
 ### Fixes
 
+- Map iMessage archive paths without exposing the Messages source database to backup selection.
+- Keep status check timestamps separate from import/sync freshness and recognize missing external archives as requiring setup.
+- Preserve recursive configuration substitution while bounding cycles and expansion.
+- Coordinate manual and scheduled mutations per crawler, respect retry intervals after failed attempts, and retry failed publication without repeating successful sync.
+- Apply both share consent settings to manual sync publication and discard superseded action status updates.
 - Keep crawler credentials out of UI/CLI installation state and redact echoed credentials before command output or action-log persistence. Thanks @vincentkoc.
 - Bound crawler-command and Homebrew-install timeout teardown so actions return when process termination fails. Thanks @SebTardif.
 - Bound SQLite backup process waits to 600 seconds so wedged backups return a timeout instead of hanging Settings or the CLI. Thanks @SebTardif.

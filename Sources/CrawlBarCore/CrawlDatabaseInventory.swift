@@ -20,6 +20,9 @@ public enum CrawlDatabaseInventory {
             return Self.singleSQLiteResource(status: status, manifest: manifest, label: "Telegram archive", role: "Desktop archive")
         case BuiltInCrawlApps.notcrawlID:
             return Self.notcrawlResources(status: status, manifest: manifest)
+        case BuiltInCrawlApps.imsgcrawlID:
+            guard status.databasePath?.nilIfBlank != nil else { return [] }
+            return Self.singleSQLiteResource(status: status, manifest: manifest, label: "iMessage archive", role: nil)
         default:
             return Self.singleSQLiteResource(status: status, manifest: manifest, label: "Archive database", role: nil)
         }
