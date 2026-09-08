@@ -83,7 +83,7 @@ extension CrawlBarSettingsModel {
                     config: config,
                     configValues: actionConfigValues,
                     action: action,
-                    allowShare: { (try? registry.loadConfig().apps.first { $0.id == appID }) == config },
+                    allowShare: { registry.matchesPersistedAppConfig(config, manifest: installation.manifest) },
                     execute: { next in
                         try runner.run(
                             installation: installation, configValues: actionConfigValues,

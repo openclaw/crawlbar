@@ -21,6 +21,7 @@ extension CrawlStatusMapper {
         let observedDataAt = lastSyncAt ?? lastImportAt
             ?? remote?.lastSyncAt
             ?? remote?.lastIngestAt
+            ?? object["updated_at"].flatMap { self.date($0) }
         let freshness = self.freshness(in: object, lastSyncAt: observedDataAt, staleAfterSeconds: staleAfterSeconds)
         return CrawlAppStatus(
             appID: result.appID,

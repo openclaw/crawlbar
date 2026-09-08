@@ -118,6 +118,102 @@ extension CrawlBarSelfTest {
             return Self.actionFixtureResult(installation.id, action: action, exitCode: 0)
         }
         try Self.expect(calls == ["pull", "share"], "explicit manual sync never turns into a publish-only retry")
+        try Self.testSettingsShareConfigSnapshot()
+    }
+
+    static func testSettingsShareConfigSnapshot() throws {
+        for change in [
+            "unchanged", "secret-only", "share-disabled", "after-refresh-disabled",
+            "missing-app", "missing-main", "corrupt-main", "persisted-destination",
+            "native-destination", "config-path", "share-action", "refresh-action", "other-setting",
+        ] {
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent("crawlbar-share-config-\(UUID())")
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let mainURL = directory.appendingPathComponent("config.json")
+            let nativeURL = directory.appendingPathComponent("native.toml")
+            var manifest = Self.nativeFixtureManifest(commands: ["pull": [], "share": []])
+            manifest.configOptions = [
+                .init(id: "destination", label: "Destination", configKey: "share.destination"),
+                .init(id: "fixture_secret", label: "Fixture secret", kind: .secret, configKey: "auth.fixture"),
+            ]
+            let app = CrawlBarAppConfig(
+                id: manifest.id, configPath: nativeURL.path, preferredRefreshAction: "pull",
+                shareEnabled: true, shareAfterRefresh: true, preferredShareAction: "share")
+            let store = CrawlBarConfigStore(fileURL: mainURL, cache: CrawlBarConfigCache())
+            let nativeStore = CrawlNativeConfigStore(cache: CrawlNativeConfigCache())
+            let registry = CrawlAppRegistry(configStore: store, nativeConfigStore: nativeStore)
+            // No external manifests or secret-store calls are needed for this fixture.
+            var persisted = CrawlBarConfig(manifestDirectories: [directory.appendingPathComponent("apps").path], apps: [app])
+            try store.save(persisted)
+            var native = app
+            native.configValues = ["destination": "original", "fixture_secret": UUID().uuidString]
+            try nativeStore.write(appConfig: native, manifest: manifest)
+            var baseline = registry.appConfigWithNativeValues(app, manifest: manifest, includeSecrets: false)
+            try Self.expect(baseline.configValues == ["destination": "original"], "Settings baseline contains native nonsecret values")
+            baseline.configValues["fixture_secret"] = UUID().uuidString
+            let installation = CrawlAppInstallation(manifest: manifest)
+            let coordinator = CrawlActionCoordinator()
+            var calls: [String] = []
+            let outcome = try coordinator.run(
+                installation: installation, config: baseline, configValues: [:], action: "pull",
+                allowShare: { registry.matchesPersistedAppConfig(baseline, manifest: manifest) })
+            { action in
+                calls.append(action)
+                if action == "pull" {
+                    switch change {
+                    case "share-disabled": persisted.apps[0].shareEnabled = false
+                    case "after-refresh-disabled": persisted.apps[0].shareAfterRefresh = false
+                    case "missing-app": persisted.apps.removeAll()
+                    case "persisted-destination": persisted.apps[0].configValues["destination"] = "changed"
+                    case "config-path": persisted.apps[0].configPath = directory.appendingPathComponent("other.toml").path
+                    case "share-action": persisted.apps[0].preferredShareAction = "other-share"
+                    case "refresh-action": persisted.apps[0].preferredRefreshAction = "other-refresh"
+                    case "other-setting": persisted.apps[0].showInMenuBar = false
+                    case "native-destination", "secret-only":
+                        if change == "secret-only" {
+                            native.configValues["fixture_secret"] = UUID().uuidString
+                        } else {
+                            native.configValues["destination"] = "changed"
+                        }
+                        try nativeStore.write(appConfig: native, manifest: manifest)
+                    default: break
+                    }
+                    switch change {
+                    case "missing-main":
+                        try FileManager.default.removeItem(at: mainURL)
+                    case "corrupt-main":
+                        try Data("not-json".utf8).write(to: mainURL)
+                        // Deterministically invalidate the existing mtime-based cache.
+                        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 0)], ofItemAtPath: mainURL.path)
+                    default:
+                        try store.save(persisted)
+                    }
+                }
+                return Self.actionFixtureResult(manifest.id, action: action, exitCode: 0)
+            }
+            let shouldPublish = change == "unchanged" || change == "secret-only"
+            try Self.expect(outcome.failure == nil && calls == (shouldPublish ? ["pull", "share"] : ["pull"]), "Settings share gate: \(change)")
+            var shareGateCalls = 0
+            calls = []
+            _ = try coordinator.run(
+                installation: installation, config: baseline, configValues: [:], action: "share",
+                allowShare: {
+                    shareGateCalls += 1
+                    return registry.matchesPersistedAppConfig(baseline, manifest: manifest)
+                })
+            { action in
+                calls.append(action)
+                return Self.actionFixtureResult(manifest.id, action: action, exitCode: 0)
+            }
+            try Self.expect(calls == ["share"] && shareGateCalls == 0, "standalone publication bypasses only the between-phase gate")
+            if change == "missing-main" {
+                try Self.expect(!FileManager.default.fileExists(atPath: mainURL.path), "share gate never recreates a missing main config")
+            } else if change == "corrupt-main" {
+                let data = try Data(contentsOf: mainURL)
+                try Self.expect(data == Data("not-json".utf8), "share gate never repairs a corrupt main config")
+            }
+        }
     }
 
     static func actionFixtureResult(_ appID: CrawlAppID, action: String, exitCode: Int32, date: Date = Date()) -> CrawlCommandResult {

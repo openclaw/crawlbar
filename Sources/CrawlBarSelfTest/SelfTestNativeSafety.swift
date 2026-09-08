@@ -65,9 +65,50 @@ extension CrawlBarSelfTest {
             from: try Self.nativeStatusResult(["state": "ready", "generated_at": "2026-09-08T12:00:00Z"], appID: manifest.id),
             manifest: manifest)
         try Self.expect(never.lastSyncAt == nil && never.freshness == nil, "generated_at alone establishes no data freshness")
+        let recent = Date()
+        let recentISO = ISO8601DateFormatter().string(from: recent)
+        let oldTimestamps: [Any] = ["2000-01-01T00:00:00Z", 946684800]
+        for timestamp in oldTimestamps {
+            for generated in [false, true] {
+                var payload: [String: Any] = ["state": "ready", "updated_at": timestamp]
+                if generated { payload["generated_at"] = recentISO }
+                let legacy = CrawlStatusMapper().status(
+                    from: try Self.nativeStatusResult(payload, appID: manifest.id), manifest: manifest, staleAfterSeconds: 60)
+                try Self.expect(legacy.freshness?.status == .stale && legacy.state == .current, "legacy updated_at preserves stale data separately from readiness")
+                try Self.expect(legacy.lastSyncAt == nil && legacy.lastImportAt == nil, "legacy data time is not relabeled as sync or import")
+            }
+        }
+        let recentTimestamps: [Any] = [recentISO, recent.timeIntervalSince1970]
+        for timestamp in recentTimestamps {
+            let legacy = CrawlStatusMapper().status(
+                from: try Self.nativeStatusResult(["updated_at": timestamp], appID: manifest.id),
+                manifest: manifest, staleAfterSeconds: 60)
+            try Self.expect(legacy.freshness?.status == .current, "recent legacy ISO or epoch data time is current")
+        }
+        let actualTimes: [[String: Any]] = [
+            ["last_sync_at": "2000-01-01T00:00:00Z"],
+            ["last_import_at": "2000-01-01T00:00:00Z"],
+            ["remote": ["mode": "fixture", "last_sync_at": "2000-01-01T00:00:00Z"]],
+            ["remote": ["mode": "fixture", "last_ingest_at": "2000-01-01T00:00:00Z"]],
+        ]
+        for actual in actualTimes {
+            var payload = actual
+            payload["updated_at"] = recentISO
+            let mapped = CrawlStatusMapper().status(
+                from: try Self.nativeStatusResult(payload, appID: manifest.id), manifest: manifest, staleAfterSeconds: 60)
+            try Self.expect(mapped.freshness?.status == .stale, "sync/import/remote times retain priority over legacy updated_at")
+        }
+        let explicit = CrawlStatusMapper().status(
+            from: try Self.nativeStatusResult([
+                "updated_at": "2000-01-01T00:00:00Z", "freshness": ["status": "current"],
+            ], appID: manifest.id), manifest: manifest)
+        try Self.expect(explicit.freshness?.status == .current, "explicit freshness retains priority over legacy data time")
+        let untimed = CrawlStatusMapper().status(
+            from: try Self.nativeStatusResult(["state": "ready"], appID: manifest.id), manifest: manifest)
+        try Self.expect(untimed.freshness == nil, "timestamp-free status does not invent freshness")
         for (raw, expected) in [("missing", CrawlAppState.needsConfig), ("unrecognized-state", .unknown), ("ready", .current)] {
             let mapped = CrawlStatusMapper().status(
-                from: try Self.nativeStatusResult(["state": raw], appID: manifest.id), manifest: manifest)
+                from: try Self.nativeStatusResult(["state": raw, "updated_at": recentISO], appID: manifest.id), manifest: manifest)
             try Self.expect(mapped.state == expected, "external manifest state \(raw) maps truthfully")
         }
     }

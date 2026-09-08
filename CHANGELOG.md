@@ -9,6 +9,8 @@
 - Preserve recursive configuration substitution while bounding cycles and expansion.
 - Coordinate manual and scheduled mutations per crawler, respect retry intervals after failed attempts, and retry failed publication without repeating successful sync.
 - Apply both share consent settings to manual sync publication and discard superseded action status updates.
+- Allow Settings sync to publish with unchanged native configuration, while stopping automatic publication when consent or nonsecret configuration changes or the main config is missing or invalid.
+- Restore legacy data `updated_at` as a freshness fallback without treating status-generation time as fresh data.
 - Keep crawler credentials out of UI/CLI installation state and redact echoed credentials before command output or action-log persistence. Thanks @vincentkoc.
 - Bound crawler-command and Homebrew-install timeout teardown so actions return when process termination fails. Thanks @SebTardif.
 - Bound SQLite backup process waits to 600 seconds so wedged backups return a timeout instead of hanging Settings or the CLI. Thanks @SebTardif.

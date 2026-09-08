@@ -126,6 +126,17 @@ public struct CrawlAppRegistry: @unchecked Sendable {
         return copy
     }
 
+    package func matchesPersistedAppConfig(_ captured: CrawlBarAppConfig, manifest: CrawlAppManifest) -> Bool {
+        guard let config = try? self.configStore.load(includeSecrets: false),
+              let current = config.apps.first(where: { $0.id == captured.id })
+        else { return false }
+        // Keep the pre-action values frozen; only enrich the current config.
+        let secretIDs = Set(manifest.configOptions.filter { $0.kind == .secret }.map(\.id))
+        var baseline = captured
+        baseline.configValues = baseline.configValues.filter { !secretIDs.contains($0.key) }
+        return self.appConfigWithNativeValues(current, manifest: manifest, includeSecrets: false) == baseline
+    }
+
     private func installationWithSecrets(_ installation: CrawlAppInstallation) -> CrawlAppInstallation {
         return CrawlAppInstallation(
             manifest: installation.manifest,
