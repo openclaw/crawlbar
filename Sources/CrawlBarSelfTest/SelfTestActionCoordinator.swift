@@ -193,7 +193,8 @@ extension CrawlBarSelfTest {
                 return Self.actionFixtureResult(manifest.id, action: action, exitCode: 0)
             }
             let shouldPublish = change == "unchanged" || change == "secret-only"
-            try Self.expect(outcome.failure == nil && calls == (shouldPublish ? ["pull", "share"] : ["pull"]), "Settings share gate: \(change)")
+            try Self.expect(outcome.failure == nil, "Settings share fixture \(change): \(outcome.failure?.summary ?? "no action error")")
+            try Self.expect(calls == (shouldPublish ? ["pull", "share"] : ["pull"]), "Settings share gate \(change): actions \(calls)")
             var shareGateCalls = 0
             calls = []
             _ = try coordinator.run(
