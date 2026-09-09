@@ -8,7 +8,7 @@ extension CrawlBarSelfTest {
             defer { try? FileManager.default.removeItem(at: fixture.directory) }
             let coordinator = CrawlActionCoordinator()
             let baseline = fixture.registry.appConfigWithNativeValues(fixture.app, manifest: fixture.manifest, includeSecrets: false)
-            let permit = fixture.registry.nativePublicationGuard(for: fixture.installation, configValues: fixture.values)
+            let permit = fixture.registry.nativePublicationGuard(for: fixture.installation, configValues: fixture.values, runner: fixture.runner)
             let outcome = try coordinator.run(
                 installation: fixture.installation, config: baseline, configValues: fixture.values, action: "pull",
                 allowShare: {
@@ -64,6 +64,7 @@ extension CrawlBarSelfTest {
         }
         try Self.testNativePublicationRetry()
         try Self.testNativePublicationMissingValues()
+        try Self.testNativeConfigEnvironment()
     }
 
     private static func testNativePublicationRetry() throws {
@@ -71,7 +72,7 @@ extension CrawlBarSelfTest {
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
         let coordinator = CrawlActionCoordinator()
         let now = Date()
-        let permit = fixture.registry.nativePublicationGuard(for: fixture.installation, configValues: fixture.values)
+        let permit = fixture.registry.nativePublicationGuard(for: fixture.installation, configValues: fixture.values, runner: fixture.runner)
         let first = try coordinator.run(
             installation: fixture.installation, config: fixture.app, configValues: fixture.values, action: "pull", now: now,
             allowShare: {
@@ -88,7 +89,7 @@ extension CrawlBarSelfTest {
         try fixture.nextNative.write(to: fixture.nativeURL)
         let retryValues = fixture.registry.appConfigWithNativeValues(fixture.app, manifest: fixture.manifest, includeSecrets: false).configValues
         try Self.expect(retryValues == fixture.values, "retry command inputs still contain saved A")
-        let retryPermit = fixture.registry.nativePublicationGuard(for: fixture.installation, configValues: retryValues)
+        let retryPermit = fixture.registry.nativePublicationGuard(for: fixture.installation, configValues: retryValues, runner: fixture.runner)
         let retry = try coordinator.run(
             installation: fixture.installation, config: fixture.app, configValues: retryValues,
             action: "pull", now: now.addingTimeInterval(900), scheduledInterval: 900,
@@ -109,7 +110,7 @@ extension CrawlBarSelfTest {
     private static func testNativePublicationMissingValues() throws {
         let fixture = try NativePublicationFixture(change: "unchanged", destination: nil)
         defer { try? FileManager.default.removeItem(at: fixture.directory) }
-        let absent = fixture.registry.nativePublicationGuard(for: fixture.installation, configValues: [:])
+        let absent = fixture.registry.nativePublicationGuard(for: fixture.installation, configValues: [:], runner: fixture.runner)
         try Self.expect(absent(), "readable absent/absent ignores manifest default A")
         let coordinator = CrawlActionCoordinator()
         let baseline = fixture.registry.appConfigWithNativeValues(fixture.app, manifest: fixture.manifest, includeSecrets: false)
@@ -121,12 +122,12 @@ extension CrawlBarSelfTest {
         }
         try Self.expect(outcome.failure == nil && outcome.results.map(\.action) == ["pull", "share"], "absent values keep the child runnable")
         try Self.expect(try fixture.marker("publish") == "child-default\n", "child default is not replaced by manifest default")
-        let expectedA = fixture.registry.nativePublicationGuard(for: fixture.installation, configValues: ["destination": "A"])
+        let expectedA = fixture.registry.nativePublicationGuard(for: fixture.installation, configValues: ["destination": "A"], runner: fixture.runner)
         try Self.expect(!expectedA(), "saved A versus absent native is denied despite default A")
         try Data("[share]\nrepo_path = \"A\"\n".utf8).write(to: fixture.nativeURL)
         try Self.expect(!absent() && expectedA(), "absent/A differs and A/A matches")
         try FileManager.default.removeItem(at: fixture.nativeURL)
-        let lazy = fixture.registry.nativePublicationGuard(for: fixture.installation, configValues: ["destination": "A"])
+        let lazy = fixture.registry.nativePublicationGuard(for: fixture.installation, configValues: ["destination": "A"], runner: fixture.runner)
         try Data("[share]\nrepo_path = \"A\"\n".utf8).write(to: fixture.nativeURL)
         try Self.expect(lazy(), "factory reads only when its returned guard is invoked")
         try FileManager.default.removeItem(at: fixture.nativeURL)
@@ -143,14 +144,14 @@ extension CrawlBarSelfTest {
             .init(id: "env", label: "Environment", envVar: "PUBLICATION_FIXTURE_VALUE", configKey: "share.repo_path"),
             .init(id: "fixture_secret", label: "Fixture secret", kind: .secret, configKey: "auth.fixture"),
         ]
-        try Self.expect(fixture.registry.nativePublicationGuard(for: noMapping, configValues: [:])(), "env-backed and secret mappings require no added file read")
+        try Self.expect(fixture.registry.nativePublicationGuard(for: noMapping, configValues: [:], runner: fixture.runner)(), "env-backed and secret mappings require no added file read")
         var unavailable = fixture.installation
         unavailable.configPathOverride = nil
         unavailable.manifest.paths.defaultConfig = nil
-        try Self.expect(!fixture.registry.nativePublicationGuard(for: unavailable, configValues: [:])(), "selected route without a path is denied")
+        try Self.expect(!fixture.registry.nativePublicationGuard(for: unavailable, configValues: [:], runner: fixture.runner)(), "selected route without a path is denied")
         var remote = fixture.installation
         remote.manifest.execution = .init(kind: .ssh)
-        try Self.expect(fixture.registry.nativePublicationGuard(for: remote, configValues: [:])(), "remote predicate performs no local file probe")
+        try Self.expect(fixture.registry.nativePublicationGuard(for: remote, configValues: [:], runner: fixture.runner)(), "remote predicate performs no local file probe")
     }
 }
 

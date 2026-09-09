@@ -176,7 +176,8 @@ extension CrawlBarSelfTest {
             let actionConfigValues = ["destination": "original"]
             let installation = CrawlAppInstallation(
                 manifest: manifest, configPathOverride: nativeURL.path, configValues: actionConfigValues)
-            let nativePublicationGuard = registry.nativePublicationGuard(for: installation, configValues: actionConfigValues)
+            let runner = CrawlCommandRunner(environment: ["HOME": directory.path, "TMPDIR": directory.path, "PATH": "/usr/bin:/bin"])
+            let nativePublicationGuard = registry.nativePublicationGuard(for: installation, configValues: actionConfigValues, runner: runner)
             let coordinator = CrawlActionCoordinator()
             var calls: [String] = []
             var overwrittenMainData: Data?

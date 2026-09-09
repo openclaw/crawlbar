@@ -165,7 +165,7 @@ final class CrawlBarMenuModel: NSObject {
             Task.detached {
                 let update = { () -> CrawlActionStatusUpdate? in
                     let actionConfigValues = registry.executionConfigValues(for: installation)
-                    let nativePublicationGuard = registry.nativePublicationGuard(for: installation, configValues: actionConfigValues)
+                    let nativePublicationGuard = registry.nativePublicationGuard(for: installation, configValues: actionConfigValues, runner: runner)
                     let statusConfigValues = registry.statusConfigValues(for: installation)
                     guard let config = configs[installation.id] else { return nil }
                     let outcome: CrawlActionOutcome

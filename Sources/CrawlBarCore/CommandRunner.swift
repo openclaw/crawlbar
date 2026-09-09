@@ -75,18 +75,7 @@ public struct CrawlCommandRunner: @unchecked Sendable {
             throw CrawlCommandRunnerError.executableNotFound(executableName)
         }
 
-        var commandEnvironment = self.environment
-        if let envName = installation.manifest.paths.configEnv,
-           let configPath = installation.configPathOverride?.nilIfBlank
-        {
-            commandEnvironment[envName] = PathExpander.expandHome(configPath)
-        }
-        for option in installation.manifest.configOptions {
-            guard let envName = option.envVar?.nilIfBlank,
-                  let value = configValues[option.id]?.nilIfBlank
-            else { continue }
-            commandEnvironment[envName] = value
-        }
+        let commandEnvironment = self.commandEnvironment(for: installation, configValues: configValues)
 
         if executionKind == .ssh {
             let remoteBinaryOverride = effectiveBinaryName == installation.manifest.binary.name
@@ -110,5 +99,31 @@ public struct CrawlCommandRunner: @unchecked Sendable {
             environment: commandEnvironment,
             maskedValues: maskedValues,
             timeoutSeconds: timeoutSeconds)
+    }
+
+    func commandEnvironment(for installation: CrawlAppInstallation, configValues: [String: String]) -> [String: String] {
+        var commandEnvironment = self.environment
+        if let envName = installation.manifest.paths.configEnv,
+           let configPath = installation.configPathOverride?.nilIfBlank
+        {
+            commandEnvironment[envName] = PathExpander.expandHome(configPath)
+        }
+        for option in installation.manifest.configOptions {
+            guard let envName = option.envVar?.nilIfBlank,
+                  let value = configValues[option.id]?.nilIfBlank
+            else { continue }
+            commandEnvironment[envName] = value
+        }
+        return commandEnvironment
+    }
+
+    func nativePublicationConfigPath(for installation: CrawlAppInstallation, configValues: [String: String]) -> String? {
+        let environment = self.commandEnvironment(for: installation, configValues: configValues)
+        if let key = installation.manifest.paths.configEnv, let path = environment[key] {
+            // Preserve the transported bytes, including a present empty selector.
+            return path
+        }
+        return (installation.configPathOverride?.nilIfBlank ?? installation.manifest.paths.defaultConfig?.nilIfBlank)
+            .map { PathExpander.expandHome($0) }
     }
 }

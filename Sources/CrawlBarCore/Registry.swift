@@ -139,7 +139,8 @@ public struct CrawlAppRegistry: @unchecked Sendable {
 
     package func nativePublicationGuard(
         for installation: CrawlAppInstallation,
-        configValues: [String: String])
+        configValues: [String: String],
+        runner: CrawlCommandRunner)
         -> @Sendable () -> Bool
     {
         let manifest = installation.manifest
@@ -150,8 +151,7 @@ public struct CrawlAppRegistry: @unchecked Sendable {
         guard !optionIDs.isEmpty else { return { true } }
         // Freeze only the declared nonsecret values supplied to this execution, including retries.
         let expected = configValues.filter { optionIDs.contains($0.key) }
-        let path = (installation.configPathOverride?.nilIfBlank ?? manifest.paths.defaultConfig?.nilIfBlank)
-            .map { PathExpander.expandHome($0) }
+        let path = runner.nativePublicationConfigPath(for: installation, configValues: configValues)
         let nativeStore = self.nativeConfigStore
         return {
             guard let path,
