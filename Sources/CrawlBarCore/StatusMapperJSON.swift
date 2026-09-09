@@ -55,8 +55,10 @@ extension CrawlStatusMapper {
             return .stale
         case "failed", "failure", "source_error", "archive_error":
             return .error
+        case "missing":
+            return .needsConfig
         default:
-            return nil
+            return .unknown
         }
     }
 

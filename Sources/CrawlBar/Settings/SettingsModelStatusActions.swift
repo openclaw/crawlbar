@@ -63,7 +63,8 @@ extension CrawlBarSettingsModel {
     }
 
     func runAction(_ action: String, appID: CrawlAppID) {
-        guard let installation = self.installations[appID] else { return }
+        guard let installation = self.installations[appID], self.runningActions[appID] == nil else { return }
+        let config = self.apps.first { $0.id == appID } ?? CrawlBarAppConfig(id: appID)
         self.runningActions[appID] = action
         self.actionMessages[appID] = "Running \(Self.actionTitle(action))..."
         let runner = self.runner
@@ -72,24 +73,37 @@ extension CrawlBarSettingsModel {
         let registry = self.registry
         Task.detached {
             let actionConfigValues = registry.executionConfigValues(for: installation)
+                let nativePublicationGuard = registry.nativePublicationGuard(for: installation, configValues: actionConfigValues, runner: runner)
             let message: String
             var actionError: CrawlAppStatus?
+            var generation: UInt64?
             do {
                 CrawlBarLog.actions.notice("Running \(action, privacy: .public) for \(appID.rawValue, privacy: .public) from settings")
-                let result = try runner.run(
+                let outcome = try CrawlActionCoordinator.shared.run(
                     installation: installation,
+                    config: config,
                     configValues: actionConfigValues,
                     action: action,
-                    timeoutSeconds: 600)
-                _ = try? logStore.save(result)
-                message = result.exitCode == 0
+                    allowShare: {
+                        registry.matchesPersistedAppConfig(config, manifest: installation.manifest) && nativePublicationGuard()
+                    },
+                    execute: { next in
+                        try runner.run(
+                            installation: installation, configValues: actionConfigValues,
+                            action: next, timeoutSeconds: 600)
+                    })
+                generation = outcome.generation
+                for result in outcome.results { _ = try? logStore.save(result) }
+                message = outcome.failure == nil
                     ? "\(Self.actionTitle(action)) finished"
-                    : "\(Self.actionTitle(action)) failed with exit \(result.exitCode)"
-                if !result.succeeded {
-                    CrawlBarLog.actions.error(
-                        "\(action, privacy: .public) for \(appID.rawValue, privacy: .public) failed with exit \(result.exitCode)")
-                    actionError = Self.actionFailureStatus(result)
+                    : outcome.failure!.summary
+                actionError = outcome.failure
+            } catch CrawlActionCoordinatorError.busy {
+                await MainActor.run {
+                    self.runningActions[appID] = nil
+                    self.actionMessages[appID] = "An action is already running for this crawler"
                 }
+                return
             } catch {
                 CrawlBarLog.actions.error(
                     "\(action, privacy: .public) for \(appID.rawValue, privacy: .public) threw: \(error.localizedDescription, privacy: .public)")
@@ -101,12 +115,16 @@ extension CrawlBarSettingsModel {
                 configValues: registry.statusConfigValues(for: installation),
                 timeoutSeconds: 5)
             await MainActor.run {
+                self.runningActions[appID] = nil
+                if let generation, !CrawlActionCoordinator.shared.isCurrent(appID, generation: generation) {
+                    self.actionMessages[appID] = nil
+                    return
+                }
                 let status = actionError.map {
                     Self.actionFailureStatus($0, refreshedStatus: refreshedStatus, currentStatus: self.statuses[appID])
                 } ?? refreshedStatus
                 self.statuses[appID] = status
                 CrawlBarStateBroadcast.statusesDidChange([appID: status])
-                self.runningActions[appID] = nil
                 self.actionMessages[appID] = message
                 self.loadRecentResults()
             }

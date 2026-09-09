@@ -126,6 +126,41 @@ public struct CrawlAppRegistry: @unchecked Sendable {
         return copy
     }
 
+    package func matchesPersistedAppConfig(_ captured: CrawlBarAppConfig, manifest: CrawlAppManifest) -> Bool {
+        guard let config = try? self.configStore.loadUncached(),
+              let current = config.apps.first(where: { $0.id == captured.id })
+        else { return false }
+        // Keep the pre-action values frozen; only enrich the current config.
+        let secretIDs = Set(manifest.configOptions.filter { $0.kind == .secret }.map(\.id))
+        var baseline = captured
+        baseline.configValues = baseline.configValues.filter { !secretIDs.contains($0.key) }
+        return self.appConfigWithNativeValues(current, manifest: manifest, includeSecrets: false) == baseline
+    }
+
+    package func nativePublicationGuard(
+        for installation: CrawlAppInstallation,
+        configValues: [String: String],
+        runner: CrawlCommandRunner)
+        -> @Sendable () -> Bool
+    {
+        let manifest = installation.manifest
+        guard manifest.executionKind(configValues: configValues) == .local else { return { true } }
+        let optionIDs = Set(manifest.configOptions.filter {
+            $0.kind != .secret && $0.configKey?.nilIfBlank != nil && $0.envVar?.nilIfBlank == nil
+        }.map(\.id))
+        guard !optionIDs.isEmpty else { return { true } }
+        // Freeze only the declared nonsecret values supplied to this execution, including retries.
+        let expected = configValues.filter { optionIDs.contains($0.key) }
+        let path = runner.nativePublicationConfigPath(for: installation, configValues: configValues)
+        let nativeStore = self.nativeConfigStore
+        return {
+            guard let path,
+                  let current = try? nativeStore.publicationValues(path: path, manifest: manifest, optionIDs: optionIDs)
+            else { return false }
+            return current == expected
+        }
+    }
+
     private func installationWithSecrets(_ installation: CrawlAppInstallation) -> CrawlAppInstallation {
         return CrawlAppInstallation(
             manifest: installation.manifest,

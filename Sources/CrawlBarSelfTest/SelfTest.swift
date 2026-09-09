@@ -4,6 +4,17 @@ import Foundation
 @main
 enum CrawlBarSelfTest {
     static func main() throws {
+        try Self.testNativeArchiveMappingAndBackupSelection()
+        try Self.testNativeStatusFreshnessAndMissingState()
+        try Self.testNativeRecursiveConfigExpansion()
+        try Self.testActionAttemptCadenceAndShareRetry()
+        try Self.testActionExclusionAndConsent()
+        try Self.testActionSelectedArgumentsAndChangedConfig()
+        try Self.testExistingCredentialFixOnFailureLogs()
+        if CommandLine.arguments.contains("--native-safety") {
+            print("crawlbar synthetic native safety selftest ok")
+            return
+        }
         try Self.testAppIDSortsByRawValue()
         try Self.testDefaultConfigNormalizesBuiltInApps()
         try Self.testConfigStoreRoundTrips()

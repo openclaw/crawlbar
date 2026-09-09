@@ -155,20 +155,32 @@ extension CrawlCommandRunner {
         configValues: [String: String])
         throws -> String
     {
-        var value = argument
-        while let range = value.range(of: #"\{config:([A-Za-z0-9_.-]+)\}"#, options: .regularExpression) {
-            let token = String(value[range])
-            let optionID = String(token.dropFirst("{config:".count).dropLast())
-            guard let replacement = Self.configValue(
-                optionID,
-                installation: installation,
-                configValues: configValues)
-            else {
-                throw CrawlCommandRunnerError.missingRequiredConfig(appID: installation.id, optionID: optionID)
+        var steps = 0
+        let maximumBytes = 1_048_576
+        func expand(_ input: String, stack: Set<String>) throws -> String {
+            guard stack.count <= 64, input.utf8.count <= maximumBytes else {
+                throw CrawlCommandRunnerError.invalidConfigExpansion(appID: installation.id)
             }
-            value.replaceSubrange(range, with: replacement)
+            var value = input
+            while let range = value.range(of: #"\{config:([A-Za-z0-9_.-]+)\}"#, options: .regularExpression) {
+                steps += 1
+                let token = String(value[range])
+                let optionID = String(token.dropFirst("{config:".count).dropLast())
+                guard steps <= 4096, !stack.contains(optionID) else {
+                    throw CrawlCommandRunnerError.invalidConfigExpansion(appID: installation.id)
+                }
+                guard let raw = Self.configValue(optionID, installation: installation, configValues: configValues) else {
+                    throw CrawlCommandRunnerError.missingRequiredConfig(appID: installation.id, optionID: optionID)
+                }
+                let replacement = try expand(raw, stack: stack.union([optionID]))
+                guard value.utf8.count - token.utf8.count + replacement.utf8.count <= maximumBytes else {
+                    throw CrawlCommandRunnerError.invalidConfigExpansion(appID: installation.id)
+                }
+                value.replaceSubrange(range, with: replacement)
+            }
+            return value
         }
-        return value
+        return try expand(argument, stack: [])
     }
 
     private static func remoteShellCommand(commandParts: [String], envFile: String?) -> String {
