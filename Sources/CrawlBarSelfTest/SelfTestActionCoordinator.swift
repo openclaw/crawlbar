@@ -146,13 +146,26 @@ extension CrawlBarSelfTest {
             let registry = CrawlAppRegistry(configStore: store, nativeConfigStore: nativeStore)
             // No external manifests or secret-store calls are needed for this fixture.
             var persisted = CrawlBarConfig(manifestDirectories: [directory.appendingPathComponent("apps").path], apps: [app])
-            try store.save(persisted)
-            let primed = try store.load(includeSecrets: false)
-            try Self.expect(primed?.apps.contains(where: { $0.id == app.id && $0.shareEnabled }) == true, "main config cache is primed with consent")
+            let sameMtime = change.hasPrefix("same-mtime-")
+            let fixedModificationDate = Date(timeIntervalSince1970: 1_700_000_000)
+            if sameMtime {
+                // save also primes the cache; establish the fixture first.
+                try CrawlCoding.makeJSONEncoder().encode(persisted.normalized()).write(to: mainURL)
+                try FileManager.default.setAttributes([.modificationDate: fixedModificationDate], ofItemAtPath: mainURL.path)
+            } else {
+                try store.save(persisted)
+            }
             let attributes = try FileManager.default.attributesOfItem(atPath: mainURL.path)
             guard let originalModificationDate = attributes[.modificationDate] as? Date else {
                 throw SelfTestError.failed("main config fixture has no modification date")
             }
+            if sameMtime {
+                try Self.expect(
+                    originalModificationDate == fixedModificationDate,
+                    "initial config mtime: expected \(fixedModificationDate.timeIntervalSince1970), observed \(originalModificationDate.timeIntervalSince1970)")
+            }
+            let primed = try store.load(includeSecrets: false)
+            try Self.expect(primed?.apps.contains(where: { $0.id == app.id && $0.shareEnabled }) == true, "main config cache is primed with consent")
             var native = app
             native.configValues = ["destination": "original", "fixture_secret": UUID().uuidString]
             try nativeStore.write(appConfig: native, manifest: manifest)
@@ -206,7 +219,10 @@ extension CrawlBarSelfTest {
                         overwrittenMainData = data
                         try FileManager.default.setAttributes([.modificationDate: originalModificationDate], ofItemAtPath: mainURL.path)
                         let current = try FileManager.default.attributesOfItem(atPath: mainURL.path)
-                        try Self.expect(current[.modificationDate] as? Date == originalModificationDate, "external config overwrite preserves actual mtime")
+                        let observedDate = current[.modificationDate] as? Date
+                        try Self.expect(
+                            observedDate == originalModificationDate,
+                            "external config overwrite mtime: expected \(originalModificationDate.timeIntervalSince1970), observed \(observedDate.map { String($0.timeIntervalSince1970) } ?? "missing")")
                     default:
                         try store.save(persisted)
                     }
@@ -239,7 +255,10 @@ extension CrawlBarSelfTest {
                 let data = try Data(contentsOf: mainURL)
                 let current = try FileManager.default.attributesOfItem(atPath: mainURL.path)
                 try Self.expect(data == overwrittenMainData, "share gate leaves externally overwritten config bytes intact")
-                try Self.expect(current[.modificationDate] as? Date == originalModificationDate, "share gate leaves external config mtime intact")
+                let observedDate = current[.modificationDate] as? Date
+                try Self.expect(
+                    observedDate == originalModificationDate,
+                    "post-gate config mtime: expected \(originalModificationDate.timeIntervalSince1970), observed \(observedDate.map { String($0.timeIntervalSince1970) } ?? "missing")")
             }
         }
     }
