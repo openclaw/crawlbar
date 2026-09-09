@@ -126,14 +126,36 @@ extension CrawlBarSelfTest {
             let selected = cwd.appendingPathComponent(relative)
             try NativeEnvironmentFixture.write(NativeEnvironmentFixture.native("A"), to: selected)
             try Self.expect(fm.changeCurrentDirectoryPath(cwd.path), "relative fixture enters its owned cwd")
-            try Self.expect(fm.currentDirectoryPath == cwd.resolvingSymlinksInPath().path && fm.currentDirectoryPath != relativeFixture.home.path, "test cwd is the fixture directory, not runner HOME")
+            let entered = fm.currentDirectoryPath
+            let actual = try Self.fixtureDirectoryIdentity(atPath: entered)
+            let requested = try Self.fixtureDirectoryIdentity(atPath: cwd.path)
+            let home = try Self.fixtureDirectoryIdentity(atPath: relativeFixture.home.path)
+            let matches = actual.device.isEqual(to: requested.device) && actual.inode.isEqual(to: requested.inode)
+            let distinct = !actual.device.isEqual(to: home.device) || !actual.inode.isEqual(to: home.inode)
+            try Self.expect(matches, "owned cwd identity matches: \(matches)")
+            try Self.expect(distinct, "runner HOME identity is distinct: \(distinct)")
             let relativeRunner = relativeFixture.runner(selector: relative)
+            try Self.expect(fm.currentDirectoryPath == entered, "raw cwd is stable before relative execution")
             try relativeFixture.expectProbe(runner: relativeRunner, selector: relative)
             try relativeFixture.expectInitial(runner: relativeRunner, denied: false)
+            try Self.expect(fm.currentDirectoryPath == entered, "raw cwd is stable after relative execution")
             try Self.expect(try Data(contentsOf: selected) == NativeEnvironmentFixture.native("A"), "relative selector preserves selected bytes")
             try relativeFixture.expectUnchanged()
             try Self.expect(fm.changeCurrentDirectoryPath(original) && fm.currentDirectoryPath == original, "relative case restores cwd before cleanup")
         }
+    }
+
+    private static func fixtureDirectoryIdentity(atPath path: String) throws -> (device: NSNumber, inode: NSNumber) {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path) else {
+            throw SelfTestError.failed("directory attributes readable: false")
+        }
+        let directory = (attributes[.type] as? FileAttributeType) == .typeDirectory
+        let device = attributes[.systemNumber] as? NSNumber
+        let inode = attributes[.systemFileNumber] as? NSNumber
+        guard directory, let device, let inode else {
+            throw SelfTestError.failed("directory identity available: directory=\(directory), device=\(device != nil), inode=\(inode != nil)")
+        }
+        return (device, inode)
     }
 
     private static func testNativeFrozenEnvironment() throws {
