@@ -126,6 +126,7 @@ extension CrawlBarSelfTest {
             "unchanged", "secret-only", "share-disabled", "after-refresh-disabled",
             "missing-app", "missing-main", "corrupt-main", "persisted-destination",
             "native-destination", "config-path", "share-action", "refresh-action", "other-setting",
+            "same-mtime-consent", "same-mtime-destination", "same-mtime-corrupt",
         ] {
             let directory = FileManager.default.temporaryDirectory.appendingPathComponent("crawlbar-share-config-\(UUID())")
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -146,6 +147,12 @@ extension CrawlBarSelfTest {
             // No external manifests or secret-store calls are needed for this fixture.
             var persisted = CrawlBarConfig(manifestDirectories: [directory.appendingPathComponent("apps").path], apps: [app])
             try store.save(persisted)
+            let primed = try store.load(includeSecrets: false)
+            try Self.expect(primed?.apps.contains(where: { $0.id == app.id && $0.shareEnabled }) == true, "main config cache is primed with consent")
+            let attributes = try FileManager.default.attributesOfItem(atPath: mainURL.path)
+            guard let originalModificationDate = attributes[.modificationDate] as? Date else {
+                throw SelfTestError.failed("main config fixture has no modification date")
+            }
             var native = app
             native.configValues = ["destination": "original", "fixture_secret": UUID().uuidString]
             try nativeStore.write(appConfig: native, manifest: manifest)
@@ -155,6 +162,7 @@ extension CrawlBarSelfTest {
             let installation = CrawlAppInstallation(manifest: manifest)
             let coordinator = CrawlActionCoordinator()
             var calls: [String] = []
+            var overwrittenMainData: Data?
             let outcome = try coordinator.run(
                 installation: installation, config: baseline, configValues: [:], action: "pull",
                 allowShare: { registry.matchesPersistedAppConfig(baseline, manifest: manifest) })
@@ -162,10 +170,10 @@ extension CrawlBarSelfTest {
                 calls.append(action)
                 if action == "pull" {
                     switch change {
-                    case "share-disabled": persisted.apps[0].shareEnabled = false
+                    case "share-disabled", "same-mtime-consent": persisted.apps[0].shareEnabled = false
                     case "after-refresh-disabled": persisted.apps[0].shareAfterRefresh = false
                     case "missing-app": persisted.apps.removeAll()
-                    case "persisted-destination": persisted.apps[0].configValues["destination"] = "changed"
+                    case "persisted-destination", "same-mtime-destination": persisted.apps[0].configValues["destination"] = "changed"
                     case "config-path": persisted.apps[0].configPath = directory.appendingPathComponent("other.toml").path
                     case "share-action": persisted.apps[0].preferredShareAction = "other-share"
                     case "refresh-action": persisted.apps[0].preferredRefreshAction = "other-refresh"
@@ -184,8 +192,21 @@ extension CrawlBarSelfTest {
                         try FileManager.default.removeItem(at: mainURL)
                     case "corrupt-main":
                         try Data("not-json".utf8).write(to: mainURL)
-                        // Deterministically invalidate the existing mtime-based cache.
+                        // Retain the original changed-mtime corrupt-file regression.
                         try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 0)], ofItemAtPath: mainURL.path)
+                    case "same-mtime-consent", "same-mtime-destination", "same-mtime-corrupt":
+                        let data: Data
+                        if change == "same-mtime-corrupt" {
+                            data = Data("not-json".utf8)
+                        } else {
+                            data = try CrawlCoding.makeJSONEncoder().encode(persisted)
+                        }
+                        // External edits must not refresh the in-memory config cache.
+                        try data.write(to: mainURL)
+                        overwrittenMainData = data
+                        try FileManager.default.setAttributes([.modificationDate: originalModificationDate], ofItemAtPath: mainURL.path)
+                        let current = try FileManager.default.attributesOfItem(atPath: mainURL.path)
+                        try Self.expect(current[.modificationDate] as? Date == originalModificationDate, "external config overwrite preserves actual mtime")
                     default:
                         try store.save(persisted)
                     }
@@ -210,9 +231,15 @@ extension CrawlBarSelfTest {
             try Self.expect(calls == ["share"] && shareGateCalls == 0, "standalone publication bypasses only the between-phase gate")
             if change == "missing-main" {
                 try Self.expect(!FileManager.default.fileExists(atPath: mainURL.path), "share gate never recreates a missing main config")
-            } else if change == "corrupt-main" {
+            } else if change == "corrupt-main" || change == "same-mtime-corrupt" {
                 let data = try Data(contentsOf: mainURL)
                 try Self.expect(data == Data("not-json".utf8), "share gate never repairs a corrupt main config")
+            }
+            if let overwrittenMainData {
+                let data = try Data(contentsOf: mainURL)
+                let current = try FileManager.default.attributesOfItem(atPath: mainURL.path)
+                try Self.expect(data == overwrittenMainData, "share gate leaves externally overwritten config bytes intact")
+                try Self.expect(current[.modificationDate] as? Date == originalModificationDate, "share gate leaves external config mtime intact")
             }
         }
     }

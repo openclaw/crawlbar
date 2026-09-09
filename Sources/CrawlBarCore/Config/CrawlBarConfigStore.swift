@@ -19,9 +19,17 @@ public struct CrawlBarConfigStore: @unchecked Sendable {
     }
 
     public func load(includeSecrets: Bool = false) throws -> CrawlBarConfig? {
+        try self.load(includeSecrets: includeSecrets, useCache: true)
+    }
+
+    package func loadUncached() throws -> CrawlBarConfig? {
+        try self.load(includeSecrets: false, useCache: false)
+    }
+
+    private func load(includeSecrets: Bool, useCache: Bool) throws -> CrawlBarConfig? {
         guard self.fileManager.fileExists(atPath: self.fileURL.path) else { return nil }
-        let modificationDate = self.modificationDate(for: self.fileURL)
-        if !includeSecrets,
+        let modificationDate = useCache ? self.modificationDate(for: self.fileURL) : nil
+        if useCache, !includeSecrets,
            let cached = self.cache.config(path: self.fileURL.path, modificationDate: modificationDate)
         {
             return cached
@@ -29,7 +37,7 @@ public struct CrawlBarConfigStore: @unchecked Sendable {
         let data = try Data(contentsOf: self.fileURL)
         do {
             let config = try CrawlCoding.makeJSONDecoder().decode(CrawlBarConfig.self, from: data).normalized()
-            if !includeSecrets {
+            if useCache, !includeSecrets {
                 self.cache.set(config, path: self.fileURL.path, modificationDate: modificationDate)
             }
             return includeSecrets ? self.configWithSecrets(config) : config

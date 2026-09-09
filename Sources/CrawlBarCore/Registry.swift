@@ -127,7 +127,7 @@ public struct CrawlAppRegistry: @unchecked Sendable {
     }
 
     package func matchesPersistedAppConfig(_ captured: CrawlBarAppConfig, manifest: CrawlAppManifest) -> Bool {
-        guard let config = try? self.configStore.load(includeSecrets: false),
+        guard let config = try? self.configStore.loadUncached(),
               let current = config.apps.first(where: { $0.id == captured.id })
         else { return false }
         // Keep the pre-action values frozen; only enrich the current config.
