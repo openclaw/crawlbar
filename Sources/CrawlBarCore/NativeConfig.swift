@@ -88,6 +88,13 @@ public struct CrawlNativeConfigStore: @unchecked Sendable {
         return values
     }
 
+    func publicationValues(path: String, manifest: CrawlAppManifest, optionIDs: Set<String>) throws -> [String: String] {
+        guard self.fileManager.fileExists(atPath: path) else {
+            throw CocoaError(.fileReadNoSuchFile)
+        }
+        return try self.read(path: path, manifest: manifest).filter { optionIDs.contains($0.key) }
+    }
+
     private func cachedRead(path: String, manifest: CrawlAppManifest) -> [String: String] {
         let expandedPath = PathExpander.expandHome(path)
         guard self.fileManager.fileExists(atPath: expandedPath) else { return [:] }

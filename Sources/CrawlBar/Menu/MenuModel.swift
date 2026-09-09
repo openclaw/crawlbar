@@ -165,6 +165,7 @@ final class CrawlBarMenuModel: NSObject {
             Task.detached {
                 let update = { () -> CrawlActionStatusUpdate? in
                     let actionConfigValues = registry.executionConfigValues(for: installation)
+                    let nativePublicationGuard = registry.nativePublicationGuard(for: installation, configValues: actionConfigValues)
                     let statusConfigValues = registry.statusConfigValues(for: installation)
                     guard let config = configs[installation.id] else { return nil }
                     let outcome: CrawlActionOutcome
@@ -177,6 +178,7 @@ final class CrawlBarMenuModel: NSObject {
                             scheduledInterval: (config.refreshFrequency ?? refreshFrequency).seconds,
                             allowShare: {
                                 (try? registry.loadConfig().apps.first { $0.id == installation.id }) == config
+                                    && nativePublicationGuard()
                             },
                             execute: { action in
                                 try runner.run(

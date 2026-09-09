@@ -11,6 +11,7 @@
 - Apply both share consent settings to manual sync publication and discard superseded action status updates.
 - Allow Settings sync to publish with unchanged native configuration, while stopping automatic publication when consent or nonsecret configuration changes or the main config is missing or invalid.
 - Re-read the main config before automatic publication so external consent, destination or malformed-file changes cannot be hidden by a cached modification time.
+- Stop automatic publication and scheduled publication retries when native config-only values change or their selected local config becomes unreadable, even if saved Settings values mask the change.
 - Restore legacy data `updated_at` as a freshness fallback without treating status-generation time as fresh data.
 - Keep crawler credentials out of UI/CLI installation state and redact echoed credentials before command output or action-log persistence. Thanks @vincentkoc.
 - Bound crawler-command and Homebrew-install timeout teardown so actions return when process termination fails. Thanks @SebTardif.

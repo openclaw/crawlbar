@@ -73,6 +73,7 @@ extension CrawlBarSettingsModel {
         let registry = self.registry
         Task.detached {
             let actionConfigValues = registry.executionConfigValues(for: installation)
+            let nativePublicationGuard = registry.nativePublicationGuard(for: installation, configValues: actionConfigValues)
             let message: String
             var actionError: CrawlAppStatus?
             var generation: UInt64?
@@ -83,7 +84,9 @@ extension CrawlBarSettingsModel {
                     config: config,
                     configValues: actionConfigValues,
                     action: action,
-                    allowShare: { registry.matchesPersistedAppConfig(config, manifest: installation.manifest) },
+                    allowShare: {
+                        registry.matchesPersistedAppConfig(config, manifest: installation.manifest) && nativePublicationGuard()
+                    },
                     execute: { next in
                         try runner.run(
                             installation: installation, configValues: actionConfigValues,

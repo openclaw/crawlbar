@@ -119,6 +119,7 @@ extension CrawlBarSelfTest {
         }
         try Self.expect(calls == ["pull", "share"], "explicit manual sync never turns into a publish-only retry")
         try Self.testSettingsShareConfigSnapshot()
+        try Self.testNativePublicationGuard()
     }
 
     static func testSettingsShareConfigSnapshot() throws {
@@ -172,13 +173,18 @@ extension CrawlBarSelfTest {
             var baseline = registry.appConfigWithNativeValues(app, manifest: manifest, includeSecrets: false)
             try Self.expect(baseline.configValues == ["destination": "original"], "Settings baseline contains native nonsecret values")
             baseline.configValues["fixture_secret"] = UUID().uuidString
-            let installation = CrawlAppInstallation(manifest: manifest)
+            let actionConfigValues = ["destination": "original"]
+            let installation = CrawlAppInstallation(
+                manifest: manifest, configPathOverride: nativeURL.path, configValues: actionConfigValues)
+            let nativePublicationGuard = registry.nativePublicationGuard(for: installation, configValues: actionConfigValues)
             let coordinator = CrawlActionCoordinator()
             var calls: [String] = []
             var overwrittenMainData: Data?
             let outcome = try coordinator.run(
-                installation: installation, config: baseline, configValues: [:], action: "pull",
-                allowShare: { registry.matchesPersistedAppConfig(baseline, manifest: manifest) })
+                installation: installation, config: baseline, configValues: actionConfigValues, action: "pull",
+                allowShare: {
+                    registry.matchesPersistedAppConfig(baseline, manifest: manifest) && nativePublicationGuard()
+                })
             { action in
                 calls.append(action)
                 if action == "pull" {
@@ -235,10 +241,10 @@ extension CrawlBarSelfTest {
             var shareGateCalls = 0
             calls = []
             _ = try coordinator.run(
-                installation: installation, config: baseline, configValues: [:], action: "share",
+                installation: installation, config: baseline, configValues: actionConfigValues, action: "share",
                 allowShare: {
                     shareGateCalls += 1
-                    return registry.matchesPersistedAppConfig(baseline, manifest: manifest)
+                    return registry.matchesPersistedAppConfig(baseline, manifest: manifest) && nativePublicationGuard()
                 })
             { action in
                 calls.append(action)
