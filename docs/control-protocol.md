@@ -95,6 +95,12 @@ CrawlBar also accepts its legacy array-only form and never shell-expands either.
 - `query` should run a local read-only search or SQL-ish query. CrawlBar passes
   user query text as additional argv after the manifest command array.
 - `publish`, `update`, and exporter actions are optional and should return JSON when possible.
+- Automatic publication after a refresh, including a retry after publication
+  fails, re-reads the main configuration from disk immediately before starting
+  the publication command. Revoked sharing consent, changed crawler settings,
+  or a missing or malformed main configuration stops publication without
+  recreating the configuration file. Unchanged settings still permit publication,
+  including values supplied only by the crawler's native configuration.
 - `remote-status` and `remote-archives` should be read-only wrappers around
   Cloudflare or equivalent remote archive status/listing commands.
 - `cloud-publish` may upload rows and compressed SQLite bundle parts to a
