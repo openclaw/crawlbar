@@ -66,8 +66,6 @@ public struct CrawlCommandRunner: @unchecked Sendable {
         let executableName: String
         if executionKind == .ssh {
             executableName = "ssh"
-        } else if effectiveBinaryName != installation.manifest.binary.name {
-            executableName = installation.binaryPath ?? effectiveBinaryName
         } else {
             executableName = installation.binaryPath ?? effectiveBinaryName
         }

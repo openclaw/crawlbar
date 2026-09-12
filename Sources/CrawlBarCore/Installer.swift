@@ -60,49 +60,18 @@ public struct CrawlInstaller: @unchecked Sendable {
         timeoutSeconds: TimeInterval)
         throws -> CrawlCommandResult
     {
-        let startedAt = Date()
-        let tempDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("crawlbar-install-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempDirectory) }
-
-        let stdoutURL = tempDirectory.appendingPathComponent("stdout.log")
-        let stderrURL = tempDirectory.appendingPathComponent("stderr.log")
-        FileManager.default.createFile(atPath: stdoutURL.path, contents: nil)
-        FileManager.default.createFile(atPath: stderrURL.path, contents: nil)
-
-        let stdoutHandle = try FileHandle(forWritingTo: stdoutURL)
-        let stderrHandle = try FileHandle(forWritingTo: stderrURL)
-        defer {
-            try? stdoutHandle.close()
-            try? stderrHandle.close()
-        }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = arguments
-        process.environment = self.environment
-        process.standardOutput = stdoutHandle
-        process.standardError = stderrHandle
-
-        try process.run()
-        if CrawlProcessWait.waitUntilExit(process, timeoutSeconds: timeoutSeconds) == .timedOut {
-            throw CrawlCommandRunnerError.timedOut(appID: appID, action: "install", seconds: Int(timeoutSeconds))
-        }
-
-        try? stdoutHandle.synchronize()
-        try? stderrHandle.synchronize()
-
-        let stdout = try String(contentsOf: stdoutURL, encoding: .utf8)
-        let stderr = try String(contentsOf: stderrURL, encoding: .utf8)
-        let result = CrawlCommandResult(
+        let runner = CrawlCommandRunner(
+            resolver: self.resolver,
+            redactor: self.redactor,
+            environment: self.environment)
+        let result = try runner.runProcess(
             appID: appID,
             action: "install",
-            exitCode: process.terminationStatus,
-            stdout: self.redactor.redact(stdout),
-            stderr: self.redactor.redact(stderr),
-            startedAt: startedAt,
-            finishedAt: Date())
+            executablePath: executablePath,
+            arguments: arguments,
+            environment: self.environment,
+            maskedValues: [],
+            timeoutSeconds: timeoutSeconds)
         if result.exitCode != 0 {
             throw CrawlInstallerError.failed(result.stderr.nilIfBlank ?? result.stdout.nilIfBlank ?? "Install failed with exit \(result.exitCode)")
         }

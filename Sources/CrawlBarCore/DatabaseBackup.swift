@@ -105,15 +105,11 @@ public enum CrawlDatabaseBackupStore {
             if FileManager.default.fileExists(atPath: destination.path) {
                 try FileManager.default.removeItem(at: destination)
             }
-            if entry.resource.kind == .sqlite || entry.resource.kind == .cache {
-                try Self.backupSQLite(
-                    source: entry.source,
-                    destination: destination,
-                    resolver: resolver,
-                    timeoutSeconds: sqliteProcessTimeout)
-            } else {
-                try FileManager.default.copyItem(at: entry.source, to: destination)
-            }
+            try Self.backupSQLite(
+                source: entry.source,
+                destination: destination,
+                resolver: resolver,
+                timeoutSeconds: sqliteProcessTimeout)
             copied.append(destination.path)
         }
 
