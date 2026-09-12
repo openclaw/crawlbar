@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## 0.4.2 - 2026-09-11
 
 **Highlights:** More reliable publishing consent checks, safer archive backups, and bounded waits for stalled crawler commands.
