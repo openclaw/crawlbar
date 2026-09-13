@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Preserve repeated and case-colliding archive backups, keep crawler IDs inside the backup root, and remove incomplete snapshots in private directories.
+- Compatibility: new backup directories add a random suffix and encode unusual crawler IDs to prevent collisions and path traversal; use the returned `directory` and `files` paths instead of constructing timestamp paths.
+
 - Keep app packaging and CLI installation working with newer SwiftPM output layouts, and verify both Swift 6.1 and current stable Xcode builds in CI.
 
 ## 0.4.2 - 2026-09-11

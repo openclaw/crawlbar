@@ -46,6 +46,8 @@ crawlbar folder --app <id> [--json]
 
 Available actions come from each crawler manifest. `query` passes every argument after `--` to the crawler without shell expansion. `backup` creates SQLite snapshots of the crawler's reported local archive and cache databases in CrawlBar's backup location. `folder` prints the primary database's parent directory.
 
+Backups use unique private directories and preserve completed snapshots when a later backup fails. Treat returned backup paths as opaque; directory names may include encoded crawler IDs and a random suffix.
+
 Examples:
 
 ```sh

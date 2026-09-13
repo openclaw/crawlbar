@@ -9,7 +9,7 @@ extension CrawlBarSelfTest {
         let source = directory.appendingPathComponent("source.db")
         let archive = directory.appendingPathComponent("archive.db")
         try Data("synthetic source".utf8).write(to: source)
-        try Data("synthetic archive".utf8).write(to: archive)
+        try Self.createSQLiteDatabase(archive, value: "synthetic archive")
         let payload: [String: Any] = [
             "schema_version": "crawlkit.control.v1", "state": "ok",
             "source": ["database_path": source.path, "database_bytes": 999],
@@ -25,13 +25,14 @@ extension CrawlBarSelfTest {
         let capture = directory.appendingPathComponent("backup-source.txt")
         let sqlite = directory.appendingPathComponent("sqlite3")
         let quoted = "'" + capture.path.replacingOccurrences(of: "'", with: "'\\''") + "'"
-        try Data("#!/bin/sh\nprintf '%s' \"$1\" > \(quoted)\ncat >/dev/null\n".utf8).write(to: sqlite)
+        try Data("#!/bin/sh\nprintf '%s' \"$1\" > \(quoted)\nexec /usr/bin/sqlite3 \"$@\"\n".utf8).write(to: sqlite)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: sqlite.path)
         let resolver = CrawlExecutableResolver(environment: ["HOME": directory.path, "PATH": directory.path + ":/usr/bin:/bin"])
         let backup = try CrawlDatabaseBackupStore.backup(
             status: status, root: directory.appendingPathComponent("backups"),
             resolver: resolver, sqliteProcessTimeout: 5)
         try Self.expect(backup.files.count == 1, "backup selects one archive resource")
+        try Self.expect(try Self.sqliteValue(URL(fileURLWithPath: backup.files[0])) == "synthetic archive", "backup creates a usable archive snapshot")
         let selected = try String(contentsOf: capture, encoding: .utf8)
         try Self.expect(selected == archive.path, "actual backup invocation never receives the source database")
         let sourceBytes = try Data(contentsOf: source)
