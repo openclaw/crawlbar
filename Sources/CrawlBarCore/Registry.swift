@@ -1,6 +1,6 @@
 import Foundation
 
-public struct CrawlAppRegistry: @unchecked Sendable {
+public struct CrawlAppRegistry: Sendable {
     private let configStore: CrawlBarConfigStore
     private let catalog: CrawlManifestCatalog
     private let resolver: CrawlExecutableResolver

@@ -12,27 +12,17 @@ public final class CrawlExecutableResolver: @unchecked Sendable {
     }
 
     public func resolve(_ requestedPathOrName: String) -> String? {
-        self.lock.lock()
-        if let cached = self.resolvedExecutables[requestedPathOrName] {
-            self.lock.unlock()
+        if let cached = self.lock.withLock({ self.resolvedExecutables[requestedPathOrName] }) {
             if self.isExecutable(cached) {
                 return cached
             }
-            self.lock.lock()
-            self.resolvedExecutables.removeValue(forKey: requestedPathOrName)
-            self.lock.unlock()
-        } else {
-            self.lock.unlock()
+            _ = self.lock.withLock { self.resolvedExecutables.removeValue(forKey: requestedPathOrName) }
         }
 
         let resolved = self.resolveUncached(requestedPathOrName)
-        self.lock.lock()
-        if let resolved {
+        self.lock.withLock {
             self.resolvedExecutables[requestedPathOrName] = resolved
-        } else {
-            self.resolvedExecutables.removeValue(forKey: requestedPathOrName)
         }
-        self.lock.unlock()
         return resolved
     }
 
