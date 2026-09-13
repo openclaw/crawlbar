@@ -60,7 +60,7 @@ struct CLIOptions {
     var positionals: [String] = []
 
     init(_ arguments: ArraySlice<String>) {
-        var iterator = Array(arguments).makeIterator()
+        var iterator = arguments.makeIterator()
         while let argument = iterator.next() {
             switch argument {
             case "--json":

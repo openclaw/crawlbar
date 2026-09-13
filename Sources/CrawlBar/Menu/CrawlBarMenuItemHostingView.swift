@@ -15,10 +15,8 @@ protocol CrawlBarMenuItemHighlighting: AnyObject {
 final class CrawlBarMenuItemHostingView: NSView, CrawlBarMenuItemMeasuring, CrawlBarMenuItemHighlighting {
     private let highlightState: CrawlBarMenuItemHighlightState?
     private let hostingController: NSHostingController<AnyView>
-    private var contentVersion = 0
     private var cachedWidth: CGFloat?
     private var cachedHeight: CGFloat?
-    private var cachedContentVersion = -1
 
     override var allowsVibrancy: Bool { true }
 
@@ -37,7 +35,6 @@ final class CrawlBarMenuItemHostingView: NSView, CrawlBarMenuItemMeasuring, Craw
         self.highlightState = highlightState
         self.hostingController = NSHostingController(rootView: rootView)
         super.init(frame: .zero)
-        self.contentVersion = 1
         self.configureHostingView()
     }
 
@@ -56,7 +53,7 @@ final class CrawlBarMenuItemHostingView: NSView, CrawlBarMenuItemMeasuring, Craw
     }
 
     func measuredHeight(width: CGFloat) -> CGFloat {
-        if self.cachedWidth == width, self.cachedContentVersion == self.contentVersion, let cachedHeight {
+        if self.cachedWidth == width, let cachedHeight {
             return cachedHeight
         }
         if self.frame.size.width != width || self.bounds.size.width != width {
@@ -73,7 +70,6 @@ final class CrawlBarMenuItemHostingView: NSView, CrawlBarMenuItemMeasuring, Craw
         let rounded = ceil(safeHeight * scale) / scale
         self.cachedWidth = width
         self.cachedHeight = rounded
-        self.cachedContentVersion = self.contentVersion
         return rounded
     }
 
@@ -82,9 +78,7 @@ final class CrawlBarMenuItemHostingView: NSView, CrawlBarMenuItemMeasuring, Craw
         self.hostingController.view.autoresizingMask = [.width, .height]
         self.hostingController.view.frame = self.bounds
         self.addSubview(self.hostingController.view)
-        if #available(macOS 13.0, *) {
-            self.hostingController.sizingOptions = [.minSize, .intrinsicContentSize]
-        }
+        self.hostingController.sizingOptions = [.minSize, .intrinsicContentSize]
     }
 
     private func safeMeasuredHeight(from height: CGFloat) -> CGFloat {

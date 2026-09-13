@@ -234,7 +234,7 @@ enum CrawlBarCLI {
             installations = [installation]
         } else {
             installations = try registry.availableInstallations(includeSecrets: false)
-                .filter { Self.queryAction(for: $0, queryArguments: queryArguments) != nil }
+                .filter { CrawlQueryActionResolver.action(for: $0.manifest, queryArguments: queryArguments) != nil }
         }
         guard !installations.isEmpty else {
             throw CLIError.usage("no query-capable crawlers are enabled and on PATH")
@@ -288,14 +288,6 @@ enum CrawlBarCLI {
         if hasFailures, (!isAllApps || !hasSuccesses) {
             Foundation.exit(1)
         }
-    }
-
-    private static func queryAction(
-        for installation: CrawlAppInstallation,
-        queryArguments: [String])
-        -> String?
-    {
-        CrawlQueryActionResolver.action(for: installation.manifest, queryArguments: queryArguments)
     }
 
     private static func backup(

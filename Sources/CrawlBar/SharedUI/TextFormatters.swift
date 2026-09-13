@@ -51,8 +51,8 @@ private final class CrawlBarLockedByteCountFormatter: @unchecked Sendable {
     }()
 
     func string(fromByteCount byteCount: Int64) -> String {
-        self.lock.lock()
-        defer { self.lock.unlock() }
-        return self.formatter.string(fromByteCount: byteCount)
+        self.lock.withLock {
+            self.formatter.string(fromByteCount: byteCount)
+        }
     }
 }

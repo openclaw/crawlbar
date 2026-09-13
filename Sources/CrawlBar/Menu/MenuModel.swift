@@ -242,23 +242,6 @@ final class CrawlBarMenuModel: NSObject {
         return (immediate, commandInstallations)
     }
 
-    nonisolated private static func actionFailureStatus(_ result: CrawlCommandResult) -> CrawlAppStatus {
-        let fallback = "\(result.action) failed with exit \(result.exitCode)"
-        return CrawlAppStatus.commandFailure(
-            appID: result.appID,
-            action: result.action,
-            message: result.stderr.nilIfBlank ?? result.stdout.nilIfBlank,
-            fallback: fallback)
-    }
-
-    nonisolated private static func actionFailureStatus(appID: CrawlAppID, action: String, message: String) -> CrawlAppStatus {
-        CrawlAppStatus.commandFailure(
-            appID: appID,
-            action: action,
-            message: message,
-            fallback: "\(action) failed")
-    }
-
     nonisolated private static func actionFailureStatus(
         _ failure: CrawlAppStatus,
         refreshedStatus: CrawlAppStatus?,
