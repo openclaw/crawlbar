@@ -14,29 +14,17 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "CrawlBarCore",
-            swiftSettings: [
-                .enableUpcomingFeature("StrictConcurrency"),
-            ]),
+            name: "CrawlBarCore"),
         .executableTarget(
             name: "CrawlBar",
             dependencies: ["CrawlBarCore"],
             resources: [
                 .process("Resources"),
-            ],
-            swiftSettings: [
-                .enableUpcomingFeature("StrictConcurrency"),
             ]),
         .executableTarget(
             name: "CrawlBarCLI",
-            dependencies: ["CrawlBarCore"],
-            swiftSettings: [
-                .enableUpcomingFeature("StrictConcurrency"),
-            ]),
+            dependencies: ["CrawlBarCore"]),
         .executableTarget(
             name: "CrawlBarSelfTest",
-            dependencies: ["CrawlBarCore"],
-            swiftSettings: [
-                .enableUpcomingFeature("StrictConcurrency"),
-            ]),
+            dependencies: ["CrawlBarCore"]),
     ])

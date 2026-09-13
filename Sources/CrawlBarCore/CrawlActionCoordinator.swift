@@ -92,7 +92,7 @@ package final class CrawlActionCoordinator: @unchecked Sendable {
             }
             return (generation, resume)
         }
-        defer { self.lock.withLock { self.running.remove(appID) } }
+        defer { _ = self.lock.withLock { self.running.remove(appID) } }
 
         var actions = resumePublish ? [shareAction] : [action]
         if share && !resumePublish && shareAction != action { actions.append(shareAction) }

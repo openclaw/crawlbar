@@ -20,7 +20,7 @@ public enum CrawlInstallerError: LocalizedError, Sendable {
     }
 }
 
-public struct CrawlInstaller: @unchecked Sendable {
+public struct CrawlInstaller: Sendable {
     private let resolver: CrawlExecutableResolver
     private let redactor: CrawlCommandRedactor
     private let environment: [String: String]

@@ -279,27 +279,27 @@ public final class CrawlNativeConfigCache: @unchecked Sendable {
 
     func values(path: String, appID: CrawlAppID, manifestSignature: String, modificationDate: Date?) -> [String: String]? {
         let key = self.key(path: path, appID: appID, manifestSignature: manifestSignature)
-        self.lock.lock()
-        defer { self.lock.unlock() }
-        guard let entry = self.entries[key], entry.modificationDate == modificationDate else {
-            return nil
+        return self.lock.withLock {
+            guard let entry = self.entries[key], entry.modificationDate == modificationDate else {
+                return nil
+            }
+            return entry.values
         }
-        return entry.values
     }
 
     func set(_ values: [String: String], path: String, appID: CrawlAppID, manifestSignature: String, modificationDate: Date?) {
         let key = self.key(path: path, appID: appID, manifestSignature: manifestSignature)
-        self.lock.lock()
-        self.entries[key] = Entry(modificationDate: modificationDate, values: values)
-        self.lock.unlock()
+        self.lock.withLock {
+            self.entries[key] = Entry(modificationDate: modificationDate, values: values)
+        }
     }
 
     func remove(path: String, appID: CrawlAppID) {
-        self.lock.lock()
-        self.entries = self.entries.filter { key, _ in
-            !key.hasPrefix("\(appID.rawValue)\u{0}\(path)\u{0}")
+        self.lock.withLock {
+            self.entries = self.entries.filter { key, _ in
+                !key.hasPrefix("\(appID.rawValue)\u{0}\(path)\u{0}")
+            }
         }
-        self.lock.unlock()
     }
 
     private func key(path: String, appID: CrawlAppID, manifestSignature: String) -> String {

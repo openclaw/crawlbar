@@ -18,7 +18,7 @@ public enum CrawlSecretStoreError: LocalizedError, Sendable {
     }
 }
 
-public struct CrawlSecretStore: @unchecked Sendable {
+public struct CrawlSecretStore: Sendable {
     private let service: String
 
     public init(service: String = "com.vincentkoc.CrawlBar") {

@@ -1,6 +1,6 @@
 import Foundation
 
-public struct CrawlStatusService: @unchecked Sendable {
+public struct CrawlStatusService: Sendable {
     private let runner: CrawlCommandRunner
     private let mapper: CrawlStatusMapper
 

@@ -99,17 +99,14 @@ public final class CrawlManifestScanCache: @unchecked Sendable {
     {
         let key = directories.map { PathExpander.expandHome($0) }.joined(separator: "\u{0}")
         let now = Date()
-        self.lock.lock()
-        if let entry = self.entries[key], now.timeIntervalSince(entry.loadedAt) < self.timeToLive {
-            self.lock.unlock()
+        if let entry = self.lock.withLock({ self.entries[key] }), now.timeIntervalSince(entry.loadedAt) < self.timeToLive {
             return (entry.manifests, entry.diagnostics)
         }
-        self.lock.unlock()
 
         let result = load()
-        self.lock.lock()
-        self.entries[key] = Entry(loadedAt: now, manifests: result.manifests, diagnostics: result.diagnostics)
-        self.lock.unlock()
+        self.lock.withLock {
+            self.entries[key] = Entry(loadedAt: now, manifests: result.manifests, diagnostics: result.diagnostics)
+        }
         return result
     }
 }
