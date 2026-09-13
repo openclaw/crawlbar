@@ -83,9 +83,10 @@ extension CrawlBarCLI {
             throw CLIError.usage("config set requires --value <value>")
         }
         var config = try store.loadOrCreateDefault()
-        guard let index = config.apps.firstIndex(where: { $0.id == appID }) else {
+        if config.appConfig(for: appID) == nil, try registry.installation(for: appID) == nil {
             throw CLIError.usage("unknown app: \(appID.rawValue)")
         }
+        let index = Self.ensureAppConfig(appID: appID, in: &config)
         if value.nilIfBlank == nil {
             config.apps[index].configValues.removeValue(forKey: key)
         } else {

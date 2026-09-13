@@ -10,6 +10,7 @@ swift run crawlbar-selftest
 swift run crawlbarctl apps --json
 swift run crawlbarctl metadata --json
 swift run crawlbarctl config validate
+python3 Scripts/test_cli.py "$(swift build --show-bin-path)/crawlbarctl"
 ```
 
 SwiftPM names the development CLI `crawlbarctl` to avoid colliding with the `CrawlBar` app binary on case-insensitive macOS filesystems. Packaged and Homebrew installations expose the helper as `crawlbar`.

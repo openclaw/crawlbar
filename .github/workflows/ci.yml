@@ -49,6 +49,8 @@ jobs:
           "$CRAWLBAR_BIN_DIR/crawlbarctl" apps --json
           "$CRAWLBAR_BIN_DIR/crawlbarctl" metadata --json
           "$CRAWLBAR_BIN_DIR/crawlbarctl" config validate
+      - name: CLI contracts
+        run: python3 Scripts/test_cli.py "$CRAWLBAR_BIN_DIR/crawlbarctl"
       - name: Package app
         run: |
           Scripts/package_app.sh
