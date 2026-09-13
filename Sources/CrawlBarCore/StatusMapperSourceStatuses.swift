@@ -36,29 +36,9 @@ extension CrawlStatusMapper {
             self.count("messages", "Messages", ["message_count", "messages"]),
         ].compactMap { self.value($0, in: object) }
 
-        let counts = self.statusCounts(in: object, fallback: flatCounts)
-        let databases = self.databaseResources(in: object)
-        let remote = self.remoteStatus(in: object)
-        let lastSyncAt = self.dateValue(["last_sync_at", "latest_message_at", "updated_at"], in: object)
-            ?? remote?.lastSyncAt
-            ?? remote?.lastIngestAt
-            ?? self.databaseModifiedAt(databases)
-        let freshness = self.freshness(in: object, lastSyncAt: lastSyncAt, staleAfterSeconds: staleAfterSeconds)
-        return CrawlAppStatus(
-            appID: result.appID,
-            state: self.statusState(in: object, lastSyncAt: lastSyncAt, freshness: freshness, fallback: .current, staleAfterSeconds: staleAfterSeconds),
-            summary: self.stringValue(["summary", "message"], in: object) ?? self.summary(from: counts, fallback: "Slack crawl status is current"),
-            configPath: self.stringValue(["config_path", "config"], in: object),
-            databasePath: self.stringValue(["db_path", "database_path", "database"], in: object),
-            databaseBytes: self.intValue(["db_bytes", "database_bytes"], in: object),
-            lastSyncAt: lastSyncAt,
-            counts: counts,
-            databases: databases,
-            freshness: freshness,
-            share: self.shareStatus(in: object),
-            remote: remote,
-            sqliteObject: self.sqliteObjectStatus(in: object),
-            sqliteBundle: self.sqliteBundleStatus(in: object))
+        return self.chatArchiveStatus(
+            object, result: result, flatCounts: flatCounts,
+            fallbackSummary: "Slack crawl status is current", staleAfterSeconds: staleAfterSeconds)
     }
 
     func discrawlStatus(_ object: [String: Any], result: CrawlCommandResult, staleAfterSeconds: Int?) -> CrawlAppStatus {
@@ -71,6 +51,19 @@ extension CrawlStatusMapper {
             self.count("embedding_backlog", "Embedding Backlog", ["embedding_backlog"]),
         ].compactMap { self.value($0, in: object) }
 
+        return self.chatArchiveStatus(
+            object, result: result, flatCounts: flatCounts,
+            fallbackSummary: "Discord crawl status is current", staleAfterSeconds: staleAfterSeconds)
+    }
+
+    private func chatArchiveStatus(
+        _ object: [String: Any],
+        result: CrawlCommandResult,
+        flatCounts: [CrawlCount],
+        fallbackSummary: String,
+        staleAfterSeconds: Int?)
+        -> CrawlAppStatus
+    {
         let counts = self.statusCounts(in: object, fallback: flatCounts)
         let databases = self.databaseResources(in: object)
         let remote = self.remoteStatus(in: object)
@@ -82,7 +75,7 @@ extension CrawlStatusMapper {
         return CrawlAppStatus(
             appID: result.appID,
             state: self.statusState(in: object, lastSyncAt: lastSyncAt, freshness: freshness, fallback: .current, staleAfterSeconds: staleAfterSeconds),
-            summary: self.stringValue(["summary", "message"], in: object) ?? self.summary(from: counts, fallback: "Discord crawl status is current"),
+            summary: self.stringValue(["summary", "message"], in: object) ?? self.summary(from: counts, fallback: fallbackSummary),
             configPath: self.stringValue(["config_path", "config"], in: object),
             databasePath: self.stringValue(["db_path", "database_path", "database"], in: object),
             databaseBytes: self.intValue(["db_bytes", "database_bytes"], in: object),
