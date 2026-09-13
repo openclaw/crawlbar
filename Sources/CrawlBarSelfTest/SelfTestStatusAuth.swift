@@ -137,4 +137,150 @@ extension CrawlBarSelfTest {
         try Self.expect(status.state == .current, "explicit crawler state wins over stale timestamp heuristics")
         try Self.expect(status.freshness?.status == .stale, "stale timestamp can still be shown as metadata")
     }
+
+    static func testStatusMapperGoogleAccountStates() throws {
+        let gogResult = CrawlCommandResult(
+            appID: BuiltInCrawlApps.gogcliID,
+            action: "status",
+            exitCode: 0,
+            stdout: #"{"account":{"credentials_exists":true},"config":{"exists":true,"path":"/tmp/gog/config.json"}}"#,
+            stderr: "",
+            startedAt: Date(),
+            finishedAt: Date())
+        let gogStatus = CrawlStatusMapper().status(from: gogResult, manifest: BuiltInCrawlApps.gogcli)
+        try Self.expect(gogStatus.state == .needsAuth, "gog raw status asks OAuth auth to be verified")
+        try Self.expect(gogStatus.configPath == "/tmp/gog/config.json", "gog config path maps")
+
+        let gogServiceAccountRawResult = CrawlCommandResult(
+            appID: BuiltInCrawlApps.gogcliID,
+            action: "status",
+            exitCode: 0,
+            stdout: #"{"account":{"service_account_configured":true},"config":{"exists":false}}"#,
+            stderr: "",
+            startedAt: Date(),
+            finishedAt: Date())
+        let gogServiceAccountRawStatus = CrawlStatusMapper().status(from: gogServiceAccountRawResult, manifest: BuiltInCrawlApps.gogcli)
+        try Self.expect(gogServiceAccountRawStatus.state == .current, "gog raw status maps service account auth")
+
+        let gogServiceAccountResult = CrawlCommandResult(
+            appID: BuiltInCrawlApps.gogcliID,
+            action: "status",
+            exitCode: 0,
+            stdout: #"{"status":"ok","checks":[{"name":"config.path","status":"ok","detail":"/tmp/gog/config.json"},{"name":"service_account","status":"ok"}]}"#,
+            stderr: "",
+            startedAt: Date(),
+            finishedAt: Date())
+        let gogServiceAccountStatus = CrawlStatusMapper().status(from: gogServiceAccountResult, manifest: BuiltInCrawlApps.gogcli)
+        try Self.expect(gogServiceAccountStatus.state == .current, "gog doctor maps configured auth")
+        try Self.expect(gogServiceAccountStatus.configPath == "/tmp/gog/config.json", "gog doctor config path maps")
+
+        let gogDoctorFailureResult = CrawlCommandResult(
+            appID: BuiltInCrawlApps.gogcliID,
+            action: "status",
+            exitCode: 0,
+            stdout: #"{"status":"error","checks":[{"name":"tokens","status":"error","detail":"no readable OAuth tokens"}]}"#,
+            stderr: "",
+            startedAt: Date(),
+            finishedAt: Date())
+        let gogDoctorFailureStatus = CrawlStatusMapper().status(from: gogDoctorFailureResult, manifest: BuiltInCrawlApps.gogcli)
+        try Self.expect(gogDoctorFailureStatus.state == .needsAuth, "gog doctor token failures map to auth setup")
+        try Self.expect(gogDoctorFailureStatus.summary == "no readable OAuth tokens", "gog doctor failure detail maps")
+
+        let gogDoctorConfigResult = CrawlCommandResult(
+            appID: BuiltInCrawlApps.gogcliID,
+            action: "status",
+            exitCode: 0,
+            stdout: #"{"status":"warn","checks":[{"name":"config.path","status":"warn","detail":"config missing"}]}"#,
+            stderr: "",
+            startedAt: Date(),
+            finishedAt: Date())
+        let gogDoctorConfigStatus = CrawlStatusMapper().status(from: gogDoctorConfigResult, manifest: BuiltInCrawlApps.gogcli)
+        try Self.expect(gogDoctorConfigStatus.state == .needsConfig, "gog doctor config warnings map to config setup")
+    }
+
+    static func testStatusMapperWhatsAppStoreStates() throws {
+        let wacliResult = CrawlCommandResult(
+            appID: BuiltInCrawlApps.wacliID,
+            action: "status",
+            exitCode: 0,
+            stdout: #"{"success":true,"data":{"store_dir":"/tmp/wacli/accounts/me","authenticated":true,"store":{"messages":12,"chats":3,"last_sync_at":"2026-05-01T12:00:00Z"}}}"#,
+            stderr: "",
+            startedAt: Date(),
+            finishedAt: Date())
+        let wacliStatus = CrawlStatusMapper().status(from: wacliResult, manifest: BuiltInCrawlApps.wacli)
+        try Self.expect(wacliStatus.counts.contains(CrawlCount(id: "messages", label: "Messages", value: 12)), "wacli message counts map")
+        try Self.expect(wacliStatus.configPath == "/tmp/wacli/config.yaml", "wacli account config path maps")
+        try Self.expect(wacliStatus.databasePath == "/tmp/wacli/accounts/me/wacli.db", "wacli database path maps")
+        try Self.expect(wacliStatus.databases.contains { $0.kind == .sqlite && $0.path == "/tmp/wacli/accounts/me/wacli.db" }, "wacli database inventory keeps sqlite resource")
+        try Self.expect(wacliStatus.databases.contains { $0.kind == .logical && $0.path == "/tmp/wacli/accounts/me" }, "wacli database inventory keeps logical store")
+
+        let wacliStoreErrorResult = CrawlCommandResult(
+            appID: BuiltInCrawlApps.wacliID,
+            action: "status",
+            exitCode: 0,
+            stdout: #"{"success":true,"data":{"authenticated":true,"store_error":"database disk image is malformed"}}"#,
+            stderr: "",
+            startedAt: Date(),
+            finishedAt: Date())
+        let wacliStoreErrorStatus = CrawlStatusMapper().status(from: wacliStoreErrorResult, manifest: BuiltInCrawlApps.wacli)
+        try Self.expect(wacliStoreErrorStatus.state == .error, "wacli store errors map to error status")
+        try Self.expect(wacliStoreErrorStatus.errors.contains("database disk image is malformed"), "wacli store error is preserved")
+
+        let wacliFirstRunResult = CrawlCommandResult(
+            appID: BuiltInCrawlApps.wacliID,
+            action: "status",
+            exitCode: 0,
+            stdout: #"{"success":true,"data":{"authenticated":false,"store_error":"open store: no such file"}}"#,
+            stderr: "",
+            startedAt: Date(),
+            finishedAt: Date())
+        let wacliFirstRunStatus = CrawlStatusMapper().status(from: wacliFirstRunResult, manifest: BuiltInCrawlApps.wacli)
+        try Self.expect(wacliFirstRunStatus.state == .needsAuth, "wacli first-run store errors stay auth setup")
+        try Self.expect(wacliFirstRunStatus.summary == "WhatsApp auth needs setup", "wacli first-run summary stays setup-oriented")
+
+        let wacliCorruptUnauthedResult = CrawlCommandResult(
+            appID: BuiltInCrawlApps.wacliID,
+            action: "status",
+            exitCode: 0,
+            stdout: #"{"success":true,"data":{"authenticated":false,"store_error":"database disk image is malformed"}}"#,
+            stderr: "",
+            startedAt: Date(),
+            finishedAt: Date())
+        let wacliCorruptUnauthedStatus = CrawlStatusMapper().status(from: wacliCorruptUnauthedResult, manifest: BuiltInCrawlApps.wacli)
+        try Self.expect(wacliCorruptUnauthedStatus.state == .error, "wacli corrupt unauthenticated stores stay errors")
+    }
+
+    static func testStatusMapperGitHubFailures() throws {
+        let githubAuthMessage = """
+        [github] request GET /repos/openclaw/openclaw
+        github GET /repos/openclaw/openclaw failed with status 401: {
+          "message": "Bad credentials"
+        }
+        """
+        let githubAuthResult = CrawlCommandResult(
+            appID: BuiltInCrawlApps.gitcrawlID,
+            action: "status",
+            exitCode: 1,
+            stdout: "",
+            stderr: githubAuthMessage,
+            startedAt: Date(),
+            finishedAt: Date())
+        let githubAuthStatus = CrawlStatusMapper().status(from: githubAuthResult, manifest: BuiltInCrawlApps.gitcrawl)
+        try Self.expect(githubAuthStatus.state == .needsAuth, "gitcrawl 401 maps to auth state")
+        try Self.expect(githubAuthStatus.summary == "GitHub credentials rejected", "gitcrawl 401 uses useful summary")
+        try Self.expect(githubAuthStatus.errors == ["GitHub credentials rejected"], "gitcrawl 401 keeps request trace out of status errors")
+
+        let githubServerMessage = """
+        [github] request GET /repos/openclaw/openclaw
+        github GET /repos/openclaw/openclaw failed with status 500
+        """
+        let githubServerStatus = CrawlAppStatus.commandFailure(
+            appID: BuiltInCrawlApps.gitcrawlID,
+            action: "refresh",
+            message: githubServerMessage,
+            fallback: "refresh failed")
+        try Self.expect(
+            githubServerStatus.summary == "refresh: github GET /repos/openclaw/openclaw failed with status 500",
+            "gitcrawl request trace is skipped in failure summaries")
+    }
 }
