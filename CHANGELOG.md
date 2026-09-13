@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep app packaging and CLI installation working with newer SwiftPM output layouts, and verify both Swift 6.1 and current stable Xcode builds in CI.
+
 ## 0.4.2 - 2026-09-11
 
 **Highlights:** More reliable publishing consent checks, safer archive backups, and bounded waits for stalled crawler commands.

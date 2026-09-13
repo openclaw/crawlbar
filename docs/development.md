@@ -14,6 +14,8 @@ swift run crawlbarctl config validate
 
 SwiftPM names the development CLI `crawlbarctl` to avoid colliding with the `CrawlBar` app binary on case-insensitive macOS filesystems. Packaged and Homebrew installations expose the helper as `crawlbar`.
 
+CI runs the build, executable self-test, CLI smoke, and packaging checks with Xcode 16.3 on macOS 15 and Xcode 26.6 on macOS 26. Xcode 16.3 verifies the Swift 6.1 floor; the newer toolchain checks forward compatibility. Select a local Xcode with `DEVELOPER_DIR` when testing a specific compiler.
+
 ## Package the app
 
 ```sh
@@ -22,7 +24,7 @@ codesign --verify --deep --strict --verbose=2 dist/CrawlBar.app
 dist/CrawlBar.app/Contents/Helpers/crawlbar config validate
 ```
 
-The packaging script writes `dist/CrawlBar.app`. Local and CI packages use ad-hoc signing and do not need release credentials.
+The packaging script asks SwiftPM for its binary output directory, so both native SwiftPM and SwiftBuild layouts work. Set `CRAWLBAR_UNIVERSAL=1` to build both arm64 and x86_64 locally. The packaging script writes `dist/CrawlBar.app`. Local and CI packages use ad-hoc signing and do not need release credentials.
 
 ## Official artifacts
 

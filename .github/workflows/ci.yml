@@ -9,24 +9,50 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   swift:
-    runs-on: macos-15
+    name: Swift (Xcode ${{ matrix.xcode }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            xcode: '16.3'
+          - os: macos-26
+            xcode: '26.6'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
       - name: Brand icon compatibility
         run: Scripts/check_brand_icons.sh
       - name: Build
-        run: swift build
+        run: |
+          swift build -Xswiftc -warnings-as-errors
+          printf 'CRAWLBAR_BIN_DIR=%s\n' "$(swift build --show-bin-path)" >> "$GITHUB_ENV"
       - name: Selftest
-        run: swift run crawlbar-selftest
+        run: '"$CRAWLBAR_BIN_DIR/crawlbar-selftest"'
       - name: CLI smoke
         run: |
-          swift run crawlbarctl apps --json
-          swift run crawlbarctl metadata --json
-          swift run crawlbarctl config validate
+          "$CRAWLBAR_BIN_DIR/crawlbarctl" apps --json
+          "$CRAWLBAR_BIN_DIR/crawlbarctl" metadata --json
+          "$CRAWLBAR_BIN_DIR/crawlbarctl" config validate
       - name: Package app
-        run: Scripts/package_app.sh
+        run: |
+          Scripts/package_app.sh
+          codesign --verify --deep --strict --verbose=2 dist/CrawlBar.app
       - name: Packaged brand icon compatibility
         run: Scripts/check_brand_icons.sh dist/CrawlBar.app
       - name: Packaged CLI smoke
@@ -34,3 +60,7 @@ jobs:
           dist/CrawlBar.app/Contents/Helpers/crawlbar apps --json
           dist/CrawlBar.app/Contents/Helpers/crawlbar metadata --json
           dist/CrawlBar.app/Contents/Helpers/crawlbar config validate
+      - name: Install CLI smoke
+        run: |
+          PREFIX="$RUNNER_TEMP/crawlbar-bin" Scripts/install_cli.sh
+          "$RUNNER_TEMP/crawlbar-bin/crawlbar" --help

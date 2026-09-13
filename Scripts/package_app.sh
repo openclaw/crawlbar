@@ -25,6 +25,7 @@ if [ "$official_release" = "1" ] && [ "$signing_identity" != "$EXPECTED_IDENTITY
 fi
 
 cd "$ROOT_DIR"
+trap 'rm -rf "$STAGING_APP_DIR" "$BUILD_DIR"' EXIT
 mkdir -p "$DIST_DIR"
 
 if [ "$universal_build" = "1" ]; then
@@ -40,18 +41,17 @@ if [ "$universal_build" = "1" ]; then
       --scratch-path "$BUILD_DIR/$arch" \
       --product crawlbarctl >&2
   done
-  arm_release="$BUILD_DIR/arm64/arm64-apple-macosx/release"
-  intel_release="$BUILD_DIR/x86_64/x86_64-apple-macosx/release"
+  arm_release="$(swift build -c release --triple arm64-apple-macosx14.0 --scratch-path "$BUILD_DIR/arm64" --show-bin-path)"
+  intel_release="$(swift build -c release --triple x86_64-apple-macosx14.0 --scratch-path "$BUILD_DIR/x86_64" --show-bin-path)"
   resource_bundle="$arm_release/CrawlBar_CrawlBar.bundle"
 else
   swift build -c release --product CrawlBar >&2
   swift build -c release --product crawlbarctl >&2
-  native_release="$ROOT_DIR/.build/release"
+  native_release="$(swift build -c release --show-bin-path)"
   resource_bundle="$native_release/CrawlBar_CrawlBar.bundle"
 fi
 
 rm -rf "$STAGING_APP_DIR"
-trap 'rm -rf "$STAGING_APP_DIR" "$BUILD_DIR"' EXIT
 mkdir -p "$MACOS_DIR" "$HELPERS_DIR" "$RESOURCES_DIR"
 
 if [ "$universal_build" = "1" ]; then
