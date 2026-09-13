@@ -73,7 +73,7 @@ extension CrawlBarSettingsModel {
         let registry = self.registry
         Task.detached {
             let actionConfigValues = registry.executionConfigValues(for: installation)
-                let nativePublicationGuard = registry.nativePublicationGuard(for: installation, configValues: actionConfigValues, runner: runner)
+            let nativePublicationGuard = registry.nativePublicationGuard(for: installation, configValues: actionConfigValues, runner: runner)
             let message: String
             var actionError: CrawlAppStatus?
             var generation: UInt64?
@@ -94,9 +94,7 @@ extension CrawlBarSettingsModel {
                     })
                 generation = outcome.generation
                 for result in outcome.results { _ = try? logStore.save(result) }
-                message = outcome.failure == nil
-                    ? "\(Self.actionTitle(action)) finished"
-                    : outcome.failure!.summary
+                message = outcome.failure?.summary ?? "\(Self.actionTitle(action)) finished"
                 actionError = outcome.failure
             } catch CrawlActionCoordinatorError.busy {
                 await MainActor.run {
@@ -200,15 +198,6 @@ extension CrawlBarSettingsModel {
         default:
             action
         }
-    }
-
-    nonisolated static func actionFailureStatus(_ result: CrawlCommandResult) -> CrawlAppStatus {
-        let fallback = "\(result.action) failed with exit \(result.exitCode)"
-        return CrawlAppStatus.commandFailure(
-            appID: result.appID,
-            action: result.action,
-            message: result.stderr.nilIfBlank ?? result.stdout.nilIfBlank,
-            fallback: fallback)
     }
 
     nonisolated static func actionFailureStatus(appID: CrawlAppID, action: String, message: String) -> CrawlAppStatus {

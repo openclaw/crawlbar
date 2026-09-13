@@ -44,7 +44,7 @@ crawlbar backup --app <id> [--json]
 crawlbar folder --app <id> [--json]
 ```
 
-Available actions come from each crawler manifest. `query` passes every argument after `--` to the crawler without shell expansion. `backup` copies the crawler's reported primary database into CrawlBar's backup location, and `folder` opens the reported data folder.
+Available actions come from each crawler manifest. `query` passes every argument after `--` to the crawler without shell expansion. `backup` creates SQLite snapshots of the crawler's reported local archive and cache databases in CrawlBar's backup location. `folder` prints the primary database's parent directory.
 
 Examples:
 

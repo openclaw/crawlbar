@@ -5,7 +5,6 @@ import CrawlBarCore
 enum CrawlBarIconFactory {
     private static var imageCache: [String: NSImage] = [:]
     private static var menuBarImageCache: [String: NSImage] = [:]
-    private static var statusDotImageCache: [String: NSImage] = [:]
 
     static func image(for appID: CrawlAppID, manifest: CrawlAppManifest?, size: CGFloat = 32) -> NSImage {
         let cacheKey = [
@@ -83,26 +82,6 @@ enum CrawlBarIconFactory {
         return image
     }
 
-    static func statusDotImage(for state: CrawlAppState, size: CGFloat = 12) -> NSImage {
-        let cacheKey = "\(state.rawValue)|\(Self.cacheSizeKey(for: size))"
-        if let cached = Self.statusDotImageCache[cacheKey] {
-            return cached
-        }
-        let image = NSImage(size: NSSize(width: size, height: size))
-        image.lockFocus()
-        let rect = NSRect(x: 2, y: 2, width: size - 4, height: size - 4)
-        let dot = NSBezierPath(ovalIn: rect)
-        Self.statusColor(for: state).setFill()
-        dot.fill()
-        NSColor.separatorColor.withAlphaComponent(0.5).setStroke()
-        dot.lineWidth = 0.75
-        dot.stroke()
-        image.unlockFocus()
-        image.isTemplate = false
-        Self.statusDotImageCache[cacheKey] = image
-        return image
-    }
-
     static func appIconImage() -> NSImage? {
         for bundle in Self.resourceBundleCandidates() {
             if let url = bundle.url(forResource: "AppIcon", withExtension: "png") {
@@ -114,19 +93,6 @@ enum CrawlBarIconFactory {
 
     static func cacheSizeKey(for size: CGFloat) -> Int {
         Int((size * 2).rounded())
-    }
-
-    static func statusColor(for state: CrawlAppState) -> NSColor {
-        switch state {
-        case .current:
-            NSColor.systemGreen
-        case .stale, .syncing, .unknown:
-            NSColor.systemYellow
-        case .needsConfig, .needsAuth, .error:
-            NSColor.systemRed
-        case .disabled:
-            NSColor.systemGray
-        }
     }
 
     static func brandedImage(for appID: CrawlAppID, manifest: CrawlAppManifest?, size: CGFloat) -> NSImage? {
