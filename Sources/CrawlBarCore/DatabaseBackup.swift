@@ -66,7 +66,8 @@ public enum CrawlDatabaseBackupStore {
         status: CrawlAppStatus,
         root: URL,
         resolver: CrawlExecutableResolver,
-        sqliteProcessTimeout: TimeInterval)
+        sqliteProcessTimeout: TimeInterval,
+        now: Date = Date())
         throws -> CrawlDatabaseBackup
     {
         let resources = status.databases
@@ -84,15 +85,19 @@ public enum CrawlDatabaseBackupStore {
 
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
-        let timestamp = formatter.string(from: Date())
+        let timestamp = formatter.string(from: now)
             .replacingOccurrences(of: ":", with: "-")
-        let directory = root
-            .appendingPathComponent(status.appID.rawValue, isDirectory: true)
-            .appendingPathComponent(timestamp, isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let appDirectory = root.appendingPathComponent(Self.directoryComponent(status.appID), isDirectory: true)
+        try FileManager.default.createDirectory(at: appDirectory, withIntermediateDirectories: true)
+        let directory = appDirectory.appendingPathComponent("\(timestamp)-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        var completed = false
+        defer {
+            if !completed { try? FileManager.default.removeItem(at: directory) }
+        }
 
         var copied: [String] = []
-        var usedNames: Set<String> = []
         let basenameCounts = Dictionary(grouping: resources, by: { $0.source.lastPathComponent })
             .mapValues(\.count)
         for entry in resources {
@@ -100,20 +105,25 @@ public enum CrawlDatabaseBackupStore {
                 for: entry.resource,
                 source: entry.source,
                 basenameCounts: basenameCounts,
-                usedNames: &usedNames)
+                directory: directory)
             let destination = directory.appendingPathComponent(destinationName)
-            if FileManager.default.fileExists(atPath: destination.path) {
-                try FileManager.default.removeItem(at: destination)
-            }
             try Self.backupSQLite(
                 source: entry.source,
                 destination: destination,
                 resolver: resolver,
                 timeoutSeconds: sqliteProcessTimeout)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path)
             copied.append(destination.path)
         }
 
+        completed = true
         return CrawlDatabaseBackup(appID: status.appID, directory: directory.path, files: copied)
+    }
+
+    private static func directoryComponent(_ appID: CrawlAppID) -> String {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
+        let encoded = appID.rawValue.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
+        return encoded.isEmpty ? "%" : encoded
     }
 
     private static func backupSQLite(
@@ -155,7 +165,7 @@ public enum CrawlDatabaseBackupStore {
         for resource: CrawlDatabaseResource,
         source: URL,
         basenameCounts: [String: Int],
-        usedNames: inout Set<String>)
+        directory: URL)
         -> String
     {
         let basename = source.lastPathComponent
@@ -163,11 +173,11 @@ public enum CrawlDatabaseBackupStore {
         let prefix = Self.safeFilename(resource.label.nilIfBlank ?? resource.id)
         var candidate = shouldPrefix ? "\(prefix)-\(basename)" : basename
         var suffix = 2
-        while usedNames.contains(candidate) {
+        // The destination filesystem decides whether case or Unicode spellings collide.
+        while FileManager.default.fileExists(atPath: directory.appendingPathComponent(candidate).path) {
             candidate = "\(prefix)-\(suffix)-\(basename)"
             suffix += 1
         }
-        usedNames.insert(candidate)
         return candidate
     }
 

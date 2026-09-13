@@ -48,6 +48,7 @@ enum CrawlBarSelfTest {
         try Self.testInstallerTimesOutWedgedBrew()
         try Self.testTimeoutTeardownUsesProcessWait()
         try Self.testDatabaseBackupCopiesFiles()
+        try Self.testBackupIsolation()
         try Self.testDatabaseBackupTimesOutWedgedSqlite()
         try Self.testRedactorScrubsSecrets()
         print("crawlbar selftest ok")
