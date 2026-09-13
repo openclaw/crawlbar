@@ -207,8 +207,8 @@ extension CrawlBarSelfTest {
         for name in ["CrawlCommandRunnerProcess.swift", "Installer.swift"] {
             let text = try String(contentsOf: core.appendingPathComponent(name), encoding: .utf8)
             try Self.expect(
-                text.contains("CrawlProcessWait.waitUntilExit"),
-                "\(name) waits through CrawlProcessWait")
+                text.contains(name == "Installer.swift" ? "runner.runProcess(" : "CrawlProcessWait.waitUntilExit"),
+                "\(name) uses the shared bounded process runner")
             try Self.expect(
                 !text.contains("process.waitUntilExit()"),
                 "\(name) does not call unbounded Process.waitUntilExit")

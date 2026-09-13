@@ -28,22 +28,20 @@ public struct CrawlStatusService: @unchecked Sendable {
         if let status = self.immediateStatus(for: installation) {
             return status
         }
-        if installation.id == BuiltInCrawlApps.gogcliID {
-            return self.gogcliStatus(
-                for: installation,
-                configValues: configValues,
-                timeoutSeconds: timeoutSeconds)
-        }
         do {
-            let result = try self.runner.run(
-                installation: installation,
+            let status = try self.commandStatus(
+                for: installation,
                 configValues: configValues,
                 action: "status",
                 timeoutSeconds: timeoutSeconds)
-            return self.mapper.status(
-                from: result,
-                manifest: installation.manifest,
-                staleAfterSeconds: installation.staleAfterSeconds)
+            guard installation.id == BuiltInCrawlApps.gogcliID, status.state != .current else {
+                return status
+            }
+            return try self.commandStatus(
+                for: installation,
+                configValues: configValues,
+                action: "doctor",
+                timeoutSeconds: timeoutSeconds)
         } catch CrawlCommandRunnerError.timedOut {
             return CrawlAppStatus(
                 appID: installation.id,
@@ -69,43 +67,21 @@ public struct CrawlStatusService: @unchecked Sendable {
         return GitcrawlStatusSnapshot.status(for: installation)
     }
 
-    private func gogcliStatus(
+    private func commandStatus(
         for installation: CrawlAppInstallation,
         configValues: [String: String],
+        action: String,
         timeoutSeconds: TimeInterval)
-        -> CrawlAppStatus
+        throws -> CrawlAppStatus
     {
-        do {
-            let statusResult = try self.runner.run(
-                installation: installation,
-                configValues: configValues,
-                action: "status",
-                timeoutSeconds: timeoutSeconds)
-            let status = self.mapper.status(
-                from: statusResult,
-                manifest: installation.manifest,
-                staleAfterSeconds: installation.staleAfterSeconds)
-            if status.state == .current {
-                return status
-            }
-            let doctorResult = try self.runner.run(
-                installation: installation,
-                configValues: configValues,
-                action: "doctor",
-                timeoutSeconds: timeoutSeconds)
-            return self.mapper.status(
-                from: doctorResult,
-                manifest: installation.manifest,
-                staleAfterSeconds: installation.staleAfterSeconds)
-        } catch CrawlCommandRunnerError.timedOut {
-            return CrawlAppStatus(
-                appID: installation.id,
-                state: .unknown,
-                summary: "Status check is slow; run Doctor for a full check")
-        } catch CrawlCommandRunnerError.missingRequiredConfig {
-            return CrawlAppStatus(appID: installation.id, state: .needsConfig, summary: "Remote settings are incomplete")
-        } catch {
-            return CrawlAppStatus(appID: installation.id, state: .error, summary: error.localizedDescription, errors: [error.localizedDescription])
-        }
+        let result = try self.runner.run(
+            installation: installation,
+            configValues: configValues,
+            action: action,
+            timeoutSeconds: timeoutSeconds)
+        return self.mapper.status(
+            from: result,
+            manifest: installation.manifest,
+            staleAfterSeconds: installation.staleAfterSeconds)
     }
 }
