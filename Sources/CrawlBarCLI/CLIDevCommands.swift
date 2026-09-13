@@ -104,7 +104,7 @@ extension CrawlBarCLI {
         return value
     }
 
-    private static func ensureAppConfig(appID: CrawlAppID, in config: inout CrawlBarConfig) -> Int {
+    static func ensureAppConfig(appID: CrawlAppID, in config: inout CrawlBarConfig) -> Int {
         if let index = config.apps.firstIndex(where: { $0.id == appID }) {
             return index
         }

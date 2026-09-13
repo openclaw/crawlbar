@@ -59,27 +59,35 @@ struct CLIOptions {
     var diagnostics = false
     var positionals: [String] = []
 
-    init(_ arguments: ArraySlice<String>) {
+    init(_ arguments: ArraySlice<String>) throws {
         var iterator = arguments.makeIterator()
+        func requiredValue(for option: String, attached: String?) throws -> String {
+            if let attached { return attached }
+            guard let value = iterator.next(), !value.hasPrefix("--") else {
+                throw CLIError.usage("\(option) requires a value; use \(option)=<value> for values starting with --")
+            }
+            return value
+        }
         while let argument = iterator.next() {
-            switch argument {
-            case "--json":
+            let separator = argument.firstIndex(of: "=")
+            let option = separator.map { String(argument[..<$0]) } ?? argument
+            let attached = separator.map { String(argument[argument.index(after: $0)...]) }
+            switch option {
+            case "--json" where attached == nil:
                 self.json = true
             case "--app":
-                if let value = iterator.next() {
-                    self.appID = CrawlAppID(rawValue: value)
-                }
+                self.appID = CrawlAppID(rawValue: try requiredValue(for: option, attached: attached))
             case "--binary":
-                self.binary = iterator.next()
+                self.binary = try requiredValue(for: option, attached: attached)
             case "--key":
-                self.key = iterator.next()
+                self.key = try requiredValue(for: option, attached: attached)
             case "--value":
-                self.value = iterator.next()
-            case "--reveal":
+                self.value = try requiredValue(for: option, attached: attached)
+            case "--reveal" where attached == nil:
                 self.revealSecrets = true
-            case "--diagnostics":
+            case "--diagnostics" where attached == nil:
                 self.diagnostics = true
-            case "--":
+            case "--" where attached == nil:
                 while let value = iterator.next() {
                     self.positionals.append(value)
                 }

@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Keep app packaging and CLI installation working with newer SwiftPM output layouts, and verify both Swift 6.1 and current stable Xcode builds in CI.
+- Pass native credentials to CLI queries, configure newly discovered crawlers without prior registration, and reject missing option values before running commands.
+- Compatibility: values starting with `--` now use `--option=value` syntax, preventing a missing value from consuming the next flag and changing configuration unintentionally.
 
 ## 0.4.2 - 2026-09-11
 

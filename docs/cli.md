@@ -68,7 +68,9 @@ crawlbar config set --app <id> --key <id> --value <value> [--json]
 
 The main configuration file is `~/.crawlbar/config.json`. External manifests live under `~/.crawlbar/apps`, and redacted action logs live under `~/.crawlbar/logs`.
 
-Secret configuration values are hidden by default. Use `--reveal` only in a private terminal when the raw value is explicitly required.
+Discovered external crawlers can be configured immediately; `config set` creates their saved app entry when needed. Flags that take values reject a missing value or a following flag. Use `--value=--literal` (or the corresponding `--app=`, `--key=`, or `--binary=` form) when a value begins with `--`. An explicitly empty `--value` still clears a setting.
+
+Queries and actions resolve execution credentials separately from displayed installation metadata and redact those credentials from command output. Secret configuration values are hidden by default. Use `--reveal` only in a private terminal when the raw value is explicitly required.
 
 ## Development binary overrides
 
