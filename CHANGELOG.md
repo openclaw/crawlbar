@@ -1,13 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 - 2026-09-13
+
+**Highlights:** Safer archive backups (collision-proof directories) and stricter CLI option parsing; both change on-disk paths and `--option=value` syntax.
 
 - Preserve repeated and case-colliding archive backups, keep crawler IDs inside the backup root, and remove incomplete snapshots in private directories.
 - Compatibility: new backup directories add a random suffix and encode unusual crawler IDs to prevent collisions and path traversal; use the returned `directory` and `files` paths instead of constructing timestamp paths.
-
-- Keep app packaging and CLI installation working with newer SwiftPM output layouts, and verify both Swift 6.1 and current stable Xcode builds in CI.
 - Pass native credentials to CLI queries, configure newly discovered crawlers without prior registration, and reject missing option values before running commands.
 - Compatibility: values starting with `--` now use `--option=value` syntax, preventing a missing value from consuming the next flag and changing configuration unintentionally.
+- Keep app packaging and CLI installation working with newer SwiftPM output layouts, and verify both Swift 6.1 and current stable Xcode builds in CI.
 
 ## 0.4.2 - 2026-09-11
 
