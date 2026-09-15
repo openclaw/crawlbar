@@ -24,11 +24,13 @@ def main():
         native = home / "fixture.toml"
         credential = "opaque-fixture-value"
         native.write_text('[auth]\ncredential = "' + credential + '"\n[settings]\nlabel = "original"\n')
+        status_path = home / "status.json"
+        status_path.write_text(json.dumps({"state": "current", "summary": "Fixture ready"}))
         crawler = home / "fixturecrawl"
         crawler.write_text(
             '#!/bin/sh\n'
             'if [ "$1" = status ]; then\n'
-            '  printf \'%s\\n\' \'{"state":"current","summary":"Fixture ready"}\'\n'
+            '  cat "${0%/*}/status.json"\n'
             '  exit 0\n'
             'fi\n'
             'if [ "$1" = query ] && [ "$2" != needle ]; then exit 42; fi\n'
@@ -67,6 +69,38 @@ def main():
             for row in json.loads(metadata.stdout) if row["id"] != "fixture"
         ]
         config_path.write_text(json.dumps(config))
+
+        for timestamp in ["NaN", "Infinity", "-Infinity", "1e100", "-1e100", 1e100, -1e100]:
+            status_path.write_text(json.dumps({
+                "last_sync_at": timestamp, "last_import_at": timestamp, "last_export_at": timestamp,
+                "counts": {"items": 7},
+                "databases": [{"id": "remote", "kind": "remote", "modified_at": timestamp}],
+                "remote": {"endpoint": "https://example.invalid", "last_ingest_at": timestamp},
+                "sqlite_object": {"uploaded_at": timestamp},
+                "sqlite_bundle": {"generated_at": timestamp},
+            }))
+            result = run("status", "--app", "fixture", "--json")
+            expect(result.returncode == 0, "invalid timestamps do not crash status: " + str(timestamp))
+            if result.returncode == 0:
+                status = json.loads(result.stdout)[0]
+                expect("last_sync_at" not in status and "freshness" not in status,
+                       "invalid timestamps are omitted: " + str(timestamp))
+                expect("last_import_at" not in status and "last_export_at" not in status,
+                       "invalid import and export timestamps are omitted")
+                expect("modified_at" not in status["databases"][0]
+                       and "last_ingest_at" not in status["remote"]
+                       and "uploaded_at" not in status["sqlite_object"]
+                       and "generated_at" not in status["sqlite_bundle"], "nested timestamps are validated")
+                expect(status["counts"][0]["value"] == 7, "other status fields survive invalid timestamps")
+        for timestamp in [1700000000, 1700000000000, "1700000000", "1700000000000", "2023-11-14T22:13:20Z"]:
+            status_path.write_text(json.dumps({"last_sync_at": timestamp}))
+            result = run("status", "--app", "fixture", "--json")
+            expect(result.returncode == 0, "valid timestamps still produce status")
+            if result.returncode == 0:
+                status = json.loads(result.stdout)[0]
+                expect(status.get("last_sync_at") == "2023-11-14T22:13:20Z", "supported timestamp formats are preserved")
+                expect(status["freshness"]["age_seconds"] >= 0, "valid timestamps retain freshness")
+        status_path.write_text(json.dumps({"state": "current", "summary": "Fixture ready"}))
 
         query = run("query", "--app", "fixture", "--json", "--", "needle")
         expect(query.returncode == 0, "query loads native execution credentials")

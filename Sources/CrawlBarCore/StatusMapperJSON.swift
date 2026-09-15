@@ -107,19 +107,27 @@ extension CrawlStatusMapper {
     }
 
     func date(_ value: Any) -> Date? {
-        if let date = value as? Date { return date }
-        if let number = value as? NSNumber {
-            let seconds = number.doubleValue > 99_999_999_999 ? number.doubleValue / 1_000 : number.doubleValue
-            return Date(timeIntervalSince1970: seconds)
+        let parsed: Date?
+        if let date = value as? Date {
+            parsed = date
+        } else if let number = value as? NSNumber {
+            parsed = self.epochDate(number.doubleValue)
+        } else if let string = value as? String, let trimmed = string.nilIfBlank {
+            parsed = ISO8601DateFormatter.crawlBarDate(from: trimmed)
+                ?? Double(trimmed).map { self.epochDate($0) }
+        } else {
+            return nil
         }
-        guard let string = value as? String, let trimmed = string.nilIfBlank else { return nil }
-        if let date = ISO8601DateFormatter.crawlBarDate(from: trimmed) {
-            return date
-        }
-        if let seconds = Double(trimmed) {
-            return Date(timeIntervalSince1970: seconds > 99_999_999_999 ? seconds / 1_000 : seconds)
-        }
-        return nil
+        // Keep crawler dates within four-digit ISO years, safe for age arithmetic and JSON output.
+        guard let parsed,
+              parsed.timeIntervalSince1970.isFinite,
+              (-62_135_596_800..<253_402_300_800).contains(parsed.timeIntervalSince1970)
+        else { return nil }
+        return parsed
+    }
+
+    private func epochDate(_ value: Double) -> Date {
+        Date(timeIntervalSince1970: value > 99_999_999_999 ? value / 1_000 : value)
     }
 
     func label(from key: String) -> String {
