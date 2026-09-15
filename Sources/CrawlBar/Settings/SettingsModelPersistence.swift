@@ -80,11 +80,11 @@ extension CrawlBarSettingsModel {
                 refreshFrequency: self.refreshFrequency,
                 manifestDirectories: self.manifestDirectories,
                 apps: self.apps)
-            try self.store.save(
-                config,
-                clearMissingSecretIDsByAppID: self.clearedNativeSecretIDsByAppID)
             try self.nativeConfigStore.write(
                 config: config,
+                clearMissingSecretIDsByAppID: self.clearedNativeSecretIDsByAppID)
+            try self.store.save(
+                config,
                 clearMissingSecretIDsByAppID: self.clearedNativeSecretIDsByAppID)
             self.clearedNativeSecretIDsByAppID = [:]
             self.lastError = nil
