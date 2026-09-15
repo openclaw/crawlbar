@@ -82,6 +82,15 @@ groups. These are CrawlBar extensions, not fields in the current
 `crawlkit/control.Manifest`. Duplicate option IDs are ignored after the first
 entry so a broken external manifest cannot crash the settings UI.
 
+Native TOML scalar options belong to their declared table. Reads and edits stop
+at the next table or array-of-tables header, including headers with trailing
+comments; unrelated array elements are preserved when a scalar is set or cleared.
+Array elements and their child tables are excluded from native scalar reads
+and writes because scalar option IDs do not identify an array element. Saved
+CrawlBar overrides remain readable and editable independently; editing another
+option preserves those overrides. Manage array contents in the crawler's native
+configuration.
+
 Secrets must never be emitted by `metadata --json`, and config reads should
 redact them unless an explicit reveal flag is provided. Longer term, crawler
 CLIs should expose safe config read/write/clear commands so CrawlBar can stop
