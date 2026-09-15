@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Ignore non-finite and out-of-range crawler timestamps so malformed status output cannot crash the app or CLI.
+
 ## 0.5.0 - 2026-09-13
 
 **Highlights:** Safer archive backups (collision-proof directories) and stricter CLI option parsing; both change on-disk paths and `--option=value` syntax.

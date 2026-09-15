@@ -57,6 +57,9 @@ CrawlBar accepts varied JSON, then normalizes known fields into one status model
 - `sqlite_object` and `sqlite_bundle` become optional remote SQLite archive metadata.
 
 Unknown fields are allowed. The app should not break when a crawler adds extra data.
+Invalid timestamps, including non-finite epochs and dates outside ISO years
+0001–9999, are ignored without discarding the rest of the status. Epoch seconds,
+epoch milliseconds, and ISO 8601 strings remain supported.
 
 The canonical `crawlkit/control.Status` envelope has:
 
