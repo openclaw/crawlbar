@@ -200,9 +200,11 @@ def main():
                    "scalar clears preserve multiline string contents")
 
         manifest["config_options"][1]["config_key"] = "sources.auth.label"
+        manifest["config_options"].append({"id": "plain", "config_key": "settings.plain"})
         (manifests / "fixture.json").write_text(json.dumps(manifest))
         for array_name in ["sources", '"sources"', "'sources'", r'"\u0073ources"', r'"\U00000073ources"']:
-            original = ('[[' + array_name + ']]\nname = "first"\n[sources.auth]\nlabel = "first-label"\n'
+            original = ('[settings]\nplain = "original"\n'
+                        '[[' + array_name + ']]\nname = "first"\n[sources.auth]\nlabel = "first-label"\n'
                         '[other]\nlabel = "unrelated"\n'
                         '[[' + array_name + ']]\nname = "second"\n[sources.auth]\nlabel = "second-label"\n')
             config_path.write_text(json.dumps(config))
@@ -211,13 +213,27 @@ def main():
             expect(value.returncode == 0 and json.loads(value.stdout)[0].get("value") is None,
                    "array child tables are excluded from native scalar reads")
             for value in ["changed", ""]:
-                config_path.write_text(json.dumps(config))
+                saved = dict(config, apps=config["apps"] + [
+                    {"id": "fixture", "config_values": {"label": "legacy", "plain": "original"}},
+                ])
+                config_path.write_text(json.dumps(saved))
+                native.chmod(0o644)
                 updated = run("config", "set", "--app", "fixture", "--key", "label", "--value", value)
-                expect(updated.returncode != 0 and "array of tables" in updated.stderr,
-                       "explicit scalar writes cannot target array child tables")
-                expect(native.read_text() == original, "refused array writes leave the native file unchanged")
-                expect(config_path.read_text() == json.dumps(config),
-                       "refused native writes do not leave a saved CrawlBar override")
+                expect(updated.returncode == 0, "CrawlBar overrides remain editable for array-backed options")
+                expect(native.read_text() == original, "CrawlBar overrides never edit native array elements")
+                expect(native.stat().st_mode & 0o777 == 0o600,
+                       "native permissions remain private even when contents do not change")
+                readback = run("config", "get", "--app", "fixture", "--key", "label", "--json")
+                expect(readback.returncode == 0 and json.loads(readback.stdout)[0].get("value") == (value or None),
+                       "CrawlBar override updates and clears round-trip independently of arrays")
+            config_path.write_text(json.dumps(saved))
+            updated = run("config", "set", "--app", "fixture", "--key", "plain", "--value", "changed")
+            expect(updated.returncode == 0, "legacy array-backed overrides do not block unrelated edits")
+            expect(native.read_text().rstrip() == original.replace('plain = "original"', 'plain = "changed"').rstrip(),
+                   "unrelated edits preserve all array elements with legacy overrides")
+            readback = run("config", "get", "--app", "fixture", "--key", "label", "--json")
+            expect(readback.returncode == 0 and json.loads(readback.stdout)[0].get("value") == "legacy",
+                   "unrelated edits preserve the saved legacy override")
 
     for failure in failures:
         print("FAIL: " + failure, file=sys.stderr)

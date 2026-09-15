@@ -149,15 +149,12 @@ public struct CrawlNativeConfigStore: @unchecked Sendable {
             lines = []
         }
 
+        let originalLines = lines
         let arrayPaths = Self.arrayTablePaths(in: lines)
         for option in manifest.configOptions {
             guard let configKey = option.configKey?.nilIfBlank else { continue }
-            if Self.isArrayValue(configKey, arrayPaths: arrayPaths) {
-                if values[option.id]?.nilIfBlank != nil || clearMissingSecretIDs.contains(option.id) {
-                    throw CrawlNativeConfigError.arrayTableOption(configKey)
-                }
-                continue
-            }
+            // Saved overrides are still valid, but scalar writes cannot select an array element.
+            guard !Self.isArrayValue(configKey, arrayPaths: arrayPaths) else { continue }
             guard let value = values[option.id]?.nilIfBlank else {
                 if option.kind == .secret, !clearMissingSecretIDs.contains(option.id) {
                     continue
@@ -168,7 +165,9 @@ public struct CrawlNativeConfigStore: @unchecked Sendable {
             Self.set(configKey: configKey, value: Self.encodeTomlScalar(value, kind: option.kind), in: &lines)
         }
 
-        try (lines.joined(separator: "\n") + "\n").write(to: url, atomically: true, encoding: .utf8)
+        if lines != originalLines {
+            try (lines.joined(separator: "\n") + "\n").write(to: url, atomically: true, encoding: .utf8)
+        }
         try self.fileManager.setAttributes([.posixPermissions: NSNumber(value: Int16(0o600))], ofItemAtPath: url.path)
     }
 

@@ -1,16 +1,5 @@
 import Foundation
 
-enum CrawlNativeConfigError: LocalizedError {
-    case arrayTableOption(String)
-
-    var errorDescription: String? {
-        switch self {
-        case let .arrayTableOption(key):
-            "Cannot edit scalar configuration key '\(key)' inside a TOML array of tables"
-        }
-    }
-}
-
 extension CrawlNativeConfigStore {
     // Only statement starts can declare a table or a scalar key. Multiline values
     // may contain identical text and must remain opaque to configuration edits.

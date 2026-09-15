@@ -93,6 +93,7 @@ extension CrawlBarCLI {
             config.apps[index].configValues[key] = value
         }
         let clearMissingSecretIDsByAppID: [CrawlAppID: Set<String>] = value.nilIfBlank == nil ? [appID: [key]] : [:]
+        try store.save(config, clearMissingSecretIDsByAppID: clearMissingSecretIDsByAppID)
         if let installation = try registry.installation(for: appID),
            let appConfig = config.appConfig(for: appID)
         {
@@ -111,7 +112,6 @@ extension CrawlBarCLI {
                 manifest: installation.manifest,
                 clearMissingSecretIDs: clearMissingSecretIDsByAppID[appID] ?? [])
         }
-        try store.save(config, clearMissingSecretIDsByAppID: clearMissingSecretIDsByAppID)
         if options.json {
             try CLIOutput.writeJSON(["app_id": appID.rawValue, "key": key, "updated": "true"])
             return
