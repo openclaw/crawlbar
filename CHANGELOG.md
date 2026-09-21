@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add optional arm64 and x86_64 macOS release archives while keeping the universal archive and its filename.
 - Ignore non-finite and out-of-range crawler timestamps so malformed status output cannot crash the app or CLI.
 - Preserve unrelated TOML array-table values when reading, setting, or clearing native crawler configuration, including table headers with comments.
 

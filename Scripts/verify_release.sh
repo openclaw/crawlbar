@@ -6,15 +6,26 @@ EXPECTED_IDENTITY="Developer ID Application: OpenClaw Foundation (FWJYW4S8P8)"
 EXPECTED_TEAM="FWJYW4S8P8"
 EXPECTED_BUNDLE_ID="com.vincentkoc.CrawlBar"
 require_notarized=0
+architecture=universal
 
-if [ "${1:-}" = "--require-notarized" ]; then
-  require_notarized=1
-  shift
-fi
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --require-notarized) require_notarized=1; shift ;;
+    --arch)
+      architecture="${2:-}"
+      case "$architecture" in
+        arm64 | x86_64 | universal) ;;
+        *) echo "unsupported architecture: $architecture" >&2; exit 2 ;;
+      esac
+      shift 2
+      ;;
+    *) break ;;
+  esac
+done
 
 artifact="${1:-}"
-if [ -z "$artifact" ]; then
-  echo "usage: $0 [--require-notarized] <CrawlBar.app|release.zip>" >&2
+if [ "$#" -ne 1 ] || [ -z "$artifact" ]; then
+  echo "usage: $0 [--require-notarized] [--arch arm64|x86_64|universal] <CrawlBar.app|release.zip>" >&2
   exit 2
 fi
 
@@ -101,10 +112,16 @@ done
 app_signature="$(codesign -d --verbose=4 "$app_path" 2>&1)"
 grep -Fqx "Identifier=$EXPECTED_BUNDLE_ID" <<<"$app_signature"
 
+expected_architectures="$architecture"
+if [ "$architecture" = "universal" ]; then
+  expected_architectures="arm64 x86_64"
+fi
 for executable in "$app_path/Contents/MacOS/CrawlBar" "$helper"; do
-  architectures="$(lipo -archs "$executable")"
-  grep -qw arm64 <<<"$architectures"
-  grep -qw x86_64 <<<"$architectures"
+  architectures="$(lipo -archs "$executable" | tr ' ' '\n' | LC_ALL=C sort | paste -sd ' ' -)"
+  if [ "$architectures" != "$expected_architectures" ]; then
+    echo "unexpected architectures for $executable: $architectures (expected $expected_architectures)" >&2
+    exit 1
+  fi
 done
 
 if [ "$require_notarized" = "1" ]; then
@@ -113,4 +130,4 @@ if [ "$require_notarized" = "1" ]; then
   syspolicy_check distribution "$app_path"
 fi
 
-echo "verified CrawlBar $version: $EXPECTED_BUNDLE_ID, $EXPECTED_TEAM, universal, hardened runtime"
+echo "verified CrawlBar $version: $EXPECTED_BUNDLE_ID, $EXPECTED_TEAM, $architecture, hardened runtime"
