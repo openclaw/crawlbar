@@ -4,6 +4,7 @@
 
 - Ignore non-finite and out-of-range crawler timestamps so malformed status output cannot crash the app or CLI.
 - Preserve unrelated TOML array-table values when reading, setting, or clearing native crawler configuration, including table headers with comments.
+- Exclude generated iconset intermediates from macOS app packages while retaining the compiled app icon and crawler icons.
 
 ## 0.5.0 - 2026-09-13
 

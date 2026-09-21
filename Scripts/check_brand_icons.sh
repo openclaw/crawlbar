@@ -59,6 +59,10 @@ if [[ -n "$app_path" ]]; then
     echo "missing app bundle: $app_path" >&2
     exit 1
   fi
+  if [[ -e "$app_path/Contents/Resources/CrawlBar.iconset" ]]; then
+    echo "packaged app contains intermediate CrawlBar.iconset files" >&2
+    exit 1
+  fi
 
   packaged_icon_dirs=()
   while IFS= read -r icon_path; do
