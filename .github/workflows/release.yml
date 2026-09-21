@@ -63,15 +63,34 @@ jobs:
           fi
           version="${RELEASE_TAG#v}"
           base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}"
-          archive="CrawlBar-v${version}-macos.zip"
-          checksum="${archive}.sha256"
-          curl --fail --location --retry 3 --output "$archive" "${base}/${archive}"
-          curl --fail --location --retry 3 --output "$checksum" "${base}/${checksum}"
-          expected="$(awk -v name="$archive" '$2 == name { print $1 }' "$checksum")"
-          if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
-            echo "checksum asset does not bind exactly to $archive" >&2
-            exit 1
-          fi
-          actual="$(shasum -a 256 "$archive" | awk '{ print $1 }')"
-          test "$actual" = "$expected"
-          CRAWLBAR_EXPECTED_VERSION="$version" Scripts/verify_release.sh --require-notarized "$archive"
+          asset_names="$(curl --fail --silent --show-error --location --retry 3 \
+            --header "Authorization: Bearer ${GITHUB_TOKEN}" \
+            --header 'Accept: application/vnd.github+json' \
+            "${api}/releases/tags/${RELEASE_TAG}" | jq -r '.assets[].name')"
+          for architecture in universal arm64 x86_64; do
+            suffix=""
+            if [ "$architecture" != universal ]; then
+              suffix="-$architecture"
+            fi
+            archive="CrawlBar-v${version}-macos${suffix}.zip"
+            checksum="${archive}.sha256"
+            # Historical releases have only the universal archive. An optional
+            # thin artifact is valid only with its matching checksum asset.
+            if [ "$architecture" != universal ] && \
+               ! grep -Fqx "$archive" <<<"$asset_names" && \
+               ! grep -Fqx "$checksum" <<<"$asset_names"; then
+              continue
+            fi
+            grep -Fqx "$archive" <<<"$asset_names"
+            grep -Fqx "$checksum" <<<"$asset_names"
+            curl --fail --location --retry 3 --output "$archive" "${base}/${archive}"
+            curl --fail --location --retry 3 --output "$checksum" "${base}/${checksum}"
+            expected="$(awk -v name="$archive" '$2 == name { print $1 }' "$checksum")"
+            if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "checksum asset does not bind exactly to $archive" >&2
+              exit 1
+            fi
+            actual="$(shasum -a 256 "$archive" | awk '{ print $1 }')"
+            test "$actual" = "$expected"
+            CRAWLBAR_EXPECTED_VERSION="$version" Scripts/verify_release.sh --require-notarized --arch "$architecture" "$archive"
+          done

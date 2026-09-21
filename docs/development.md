@@ -25,7 +25,7 @@ codesign --verify --deep --strict --verbose=2 dist/CrawlBar.app
 dist/CrawlBar.app/Contents/Helpers/crawlbar config validate
 ```
 
-The packaging script asks SwiftPM for its binary output directory, so both native SwiftPM and SwiftBuild layouts work. Set `CRAWLBAR_UNIVERSAL=1` to build both arm64 and x86_64 locally. The packaging script writes `dist/CrawlBar.app`. Local and CI packages use ad-hoc signing and do not need release credentials.
+The packaging script asks SwiftPM for its binary output directory, so both native SwiftPM and SwiftBuild layouts work. Pass `--arch arm64`, `--arch x86_64`, or `--arch universal` to select an architecture explicitly. Without an argument, it builds for the current Mac; `CRAWLBAR_UNIVERSAL=1` still builds both architectures. The packaging script writes `dist/CrawlBar.app`. Local and CI packages use ad-hoc signing and do not need release credentials.
 
 ## Official artifacts
 
@@ -33,4 +33,6 @@ The packaged app bundle version comes from `version.env`. Release notes live in 
 
 `Scripts/package_release.sh` builds the official universal, hardened app, then notarizes, staples, and verifies it. Official packaging fails closed unless it uses the OpenClaw Foundation Developer ID identity. Runtime keychain and notarization-profile locators belong in the ignored `.mac-release.local.env`, never in committed configuration.
 
-`Scripts/verify_release.sh` checks the completed release artifact. Publishing tags or release artifacts is a separate maintainer action and is not part of local packaging.
+Maintainers can also build smaller architecture-specific artifacts with `Scripts/package_release.sh --arch arm64` and `Scripts/package_release.sh --arch x86_64`. The universal archive keeps its `CrawlBar-vVERSION-macos.zip` name; thin archives add `-arm64` or `-x86_64` before `.zip`. Each archive has a matching `.sha256` file. Every variant includes the app, CLI helper, and resources and receives its own signing and notarization checks.
+
+`Scripts/verify_release.sh` checks the completed release artifact. Pass the matching `--arch arm64` or `--arch x86_64` for a thin archive; verification requires exactly that architecture in both executables. Its default still requires the universal pair. Publishing tags or release artifacts is a separate maintainer action and is not part of local packaging.
