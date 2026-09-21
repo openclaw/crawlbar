@@ -57,6 +57,8 @@ if process.terminationStatus != 0 {
     fputs("iconutil failed\n", stderr)
     exit(process.terminationStatus)
 }
+// Only the compiled icon belongs in the app; iconutil inputs are build intermediates.
+try fileManager.removeItem(at: iconsetURL)
 
 func resizedIcon(_ source: NSImage, size: CGFloat) -> NSImage {
     let image = NSImage(size: NSSize(width: size, height: size))
