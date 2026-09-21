@@ -36,3 +36,15 @@ The packaged app bundle version comes from `version.env`. Release notes live in 
 Maintainers can also build smaller architecture-specific artifacts with `Scripts/package_release.sh --arch arm64` and `Scripts/package_release.sh --arch x86_64`. The universal archive keeps its `CrawlBar-vVERSION-macos.zip` name; thin archives add `-arm64` or `-x86_64` before `.zip`. Each archive has a matching `.sha256` file. Every variant includes the app, CLI helper, and resources and receives its own signing and notarization checks.
 
 `Scripts/verify_release.sh` checks the completed release artifact. Pass the matching `--arch arm64` or `--arch x86_64` for a thin archive; verification requires exactly that architecture in both executables. Its default still requires the universal pair. Publishing tags or release artifacts is a separate maintainer action and is not part of local packaging.
+
+## Homebrew formula
+
+After publishing, download the public archives and their `.sha256` files into a clean directory. Run `Scripts/verify_release.sh --require-notarized` on each archive with the matching `--arch` before generating the formula:
+
+```sh
+Scripts/render_homebrew_formula.sh 0.5.1 --artifacts <verified-directory> > crawlbar.rb
+```
+
+The renderer checks each checksum against its archive. A complete universal, arm64, and x86_64 set generates architecture-specific downloads; a directory containing only the universal pair generates a universal formula for older releases. Any incomplete thin set or checksum mismatch fails. `Scripts/render_homebrew_formula.sh <version> <sha256>` also renders a universal formula. Rendering does not replace signature and notarization verification or publish anything.
+
+Add the generated formula to `openclaw/homebrew-tap` only after the public artifacts pass verification. On clean Apple Silicon and Intel hosts, run `brew audit --strict openclaw/tap/crawlbar`, `brew install --build-from-source openclaw/tap/crawlbar`, and `brew test openclaw/tap/crawlbar`. The formula installs the signed app unchanged, writes its CLI wrapper outside the app, and checks both executable architectures, the Foundation signature, hardened runtime, Gatekeeper, and stapling.

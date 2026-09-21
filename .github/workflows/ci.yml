@@ -38,6 +38,8 @@ jobs:
           swift --version
       - name: Package architecture guards
         run: python3 Scripts/test_package_architectures.py
+      - name: Homebrew formula generation
+        run: python3 Scripts/test_homebrew_formula.py
       - name: Brand icon compatibility
         run: Scripts/check_brand_icons.sh
       - name: Build
