@@ -1,5 +1,7 @@
 # Changelog
 
+## Unreleased
+
 ## 0.6.0 - 2026-09-22
 
 **Highlights:** Smaller downloads for Apple Silicon and Intel Macs, plus safer crawler timestamps and native configuration edits.
