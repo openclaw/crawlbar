@@ -61,18 +61,34 @@ jobs:
       - name: Create or resume draft
         run: |
           set -euo pipefail
-          # Only an explicit 404 permits creation; auth/network failures stop.
-          code="$(curl --silent --show-error --location --output "$RUNNER_TEMP/release.json" --write-out '%{http_code}' \
-            --header "Authorization: Bearer $GH_TOKEN" --header 'Accept: application/vnd.github+json' \
-            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG")"
-          case "$code" in
-            404) gh release create "$RELEASE_TAG" --verify-tag --draft --title "CrawlBar $RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md" ;;
-            200)
-              test "$(jq -r '.draft' "$RUNNER_TEMP/release.json")" = true
-              gh release edit "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
-              ;;
-            *) echo "Release lookup failed: HTTP $code" >&2; exit 1 ;;
-          esac
+          # The tag endpoint excludes drafts. List releases and retain the numeric ID.
+          find_release() {
+            local page=1 batch release
+            while :; do
+              batch="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100&page=$page")" || return
+              release="$(jq -c --arg tag "$RELEASE_TAG" '.[] | select(.tag_name == $tag)' <<<"$batch")" || return
+              if [ -n "$release" ]; then
+                printf '%s\n' "$release"
+                return
+              fi
+              if [ "$(jq length <<<"$batch")" -lt 100 ]; then
+                printf 'null\n'
+                return
+              fi
+              page=$((page + 1))
+            done
+          }
+          release="$(find_release)"
+          if [ "$release" = null ]; then
+            gh release create "$RELEASE_TAG" --verify-tag --draft --title "CrawlBar $RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
+            release="$(find_release)"
+          else
+            test "$(jq -r .draft <<<"$release")" = true
+            gh release edit "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
+          fi
+          test "$(jq -r .draft <<<"$release")" = true
+          release_id="$(jq -er '.id | numbers' <<<"$release")"
+          printf 'RELEASE_ID=%s\n' "$release_id" >> "$GITHUB_ENV"
       - name: Prepare signing and notarization
         env:
           MACOS_SIGNING_P12: ${{ secrets.MACOS_SIGNING_P12 }}
@@ -109,7 +125,7 @@ jobs:
             Scripts/package_release.sh --arch "$architecture"
           done
           test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq .object.sha)" = "$RELEASE_TAG_OBJECT"
-          test "$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq .draft)" = true
+          test "$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" --jq .draft)" = true
           gh release upload "$RELEASE_TAG" dist/*.zip dist/*.sha256 --clobber
       - name: Publish verified draft
         run: |
@@ -122,7 +138,7 @@ jobs:
             cmp "$archive.sha256" "$RUNNER_TEMP/downloaded/$(basename "$archive").sha256"
           done
           printf '%s\n' dist/*.zip dist/*.sha256 | sed 's|^dist/||' | LC_ALL=C sort > "$RUNNER_TEMP/expected-assets"
-          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/release.json"
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" > "$RUNNER_TEMP/release.json"
           jq -r '.assets[].name' "$RUNNER_TEMP/release.json" | LC_ALL=C sort > "$RUNNER_TEMP/actual-assets"
           diff -u "$RUNNER_TEMP/expected-assets" "$RUNNER_TEMP/actual-assets"
           test "$(jq -r .draft "$RUNNER_TEMP/release.json")" = true

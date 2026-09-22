@@ -36,6 +36,8 @@ jobs:
         run: |
           xcodebuild -version
           swift --version
+      - name: Release draft contracts
+        run: python3 Scripts/test_release_drafts.py
       - name: Package architecture guards
         run: python3 Scripts/test_package_architectures.py
       - name: Homebrew formula generation
