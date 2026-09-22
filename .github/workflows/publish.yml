@@ -1,0 +1,139 @@
+name: Publish release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Signed release tag on main (vX.Y.Z)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main' && github.ref_protected && endsWith(github.workflow_ref, '@refs/heads/main')
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.3.app/Contents/Developer
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify signed tag and freeze release source
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          ref="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG")"
+          test "$(jq -r '.object.type' <<<"$ref")" = tag
+          tag_object="$(jq -r '.object.sha' <<<"$ref")"
+          printf 'RELEASE_TAG_OBJECT=%s\n' "$tag_object" >> "$GITHUB_ENV"
+          tag="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$tag_object")"
+          test "$(jq -r '.verification.verified' <<<"$tag")" = true
+          test "$(jq -r '.object.type' <<<"$tag")" = commit
+          test "$(git rev-parse "refs/tags/$RELEASE_TAG")" = "$tag_object"
+          commit="$(jq -r '.object.sha' <<<"$tag")"
+          git merge-base --is-ancestor "$commit" HEAD
+          git checkout --detach "$commit"
+          source version.env
+          test "$RELEASE_TAG" = "v$CRAWLBAR_VERSION"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          version = os.environ["RELEASE_TAG"][1:]
+          sections = Path("CHANGELOG.md").read_text().split("\n## ")
+          matches = [section.split("\n", 1)[1].strip() for section in sections[1:]
+                     if section.split("\n", 1)[0].startswith(version + " - ")]
+          if len(matches) != 1 or not matches[0].startswith("**Highlights:**"):
+              raise SystemExit("Release needs one finalized changelog section with Highlights")
+          Path(os.environ["RUNNER_TEMP"], "release-notes.md").write_text(matches[0] + "\n")
+          PY
+      - name: Create or resume draft
+        run: |
+          set -euo pipefail
+          # Only an explicit 404 permits creation; auth/network failures stop.
+          code="$(curl --silent --show-error --location --output "$RUNNER_TEMP/release.json" --write-out '%{http_code}' \
+            --header "Authorization: Bearer $GH_TOKEN" --header 'Accept: application/vnd.github+json' \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG")"
+          case "$code" in
+            404) gh release create "$RELEASE_TAG" --verify-tag --draft --title "CrawlBar $RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md" ;;
+            200)
+              test "$(jq -r '.draft' "$RUNNER_TEMP/release.json")" = true
+              gh release edit "$RELEASE_TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
+              ;;
+            *) echo "Release lookup failed: HTTP $code" >&2; exit 1 ;;
+          esac
+      - name: Prepare signing and notarization
+        env:
+          MACOS_SIGNING_P12: ${{ secrets.MACOS_SIGNING_P12 }}
+          MACOS_SIGNING_P12_PASSWORD: ${{ secrets.MACOS_SIGNING_P12_PASSWORD }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_P8: ${{ secrets.ASC_PRIVATE_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          for name in MACOS_SIGNING_P12 MACOS_SIGNING_P12_PASSWORD ASC_KEY_ID ASC_ISSUER_ID ASC_PRIVATE_KEY_P8; do
+            test -n "${!name}" || { echo "Missing release secret: $name" >&2; exit 1; }
+          done
+          keychain="$RUNNER_TEMP/crawlbar-release.keychain-db"
+          printf '%s' "$MACOS_SIGNING_P12" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          printf '%s' "$ASC_PRIVATE_KEY_P8" > "$RUNNER_TEMP/notary.p8"
+          security default-keychain -d user > "$RUNNER_TEMP/previous-keychain"
+          security create-keychain -p '' "$keychain"
+          security set-keychain-settings "$keychain"
+          security unlock-keychain -p '' "$keychain"
+          security import "$RUNNER_TEMP/signing.p12" -k "$keychain" -P "$MACOS_SIGNING_P12_PASSWORD" -T /usr/bin/codesign >/dev/null
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k '' "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" "$HOME/Library/Keychains/login.keychain-db"
+          security default-keychain -d user -s "$keychain"
+          xcrun notarytool store-credentials crawlbar-release --key "$RUNNER_TEMP/notary.p8" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" >/dev/null
+          rm -f "$RUNNER_TEMP/signing.p12" "$RUNNER_TEMP/notary.p8"
+      - name: Build, sign, notarize, and upload all architectures
+        env:
+          CRAWLBAR_CODESIGN_IDENTITY: "Developer ID Application: OpenClaw Foundation (FWJYW4S8P8)"
+          NOTARYTOOL_KEYCHAIN_PROFILE: crawlbar-release
+        run: |
+          set -euo pipefail
+          for architecture in universal arm64 x86_64; do
+            Scripts/package_release.sh --arch "$architecture"
+          done
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq .object.sha)" = "$RELEASE_TAG_OBJECT"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq .draft)" = true
+          gh release upload "$RELEASE_TAG" dist/*.zip dist/*.sha256 --clobber
+      - name: Publish verified draft
+        run: |
+          set -euo pipefail
+          # Verify uploaded bytes before changing draft visibility.
+          mkdir "$RUNNER_TEMP/downloaded"
+          gh release download "$RELEASE_TAG" --dir "$RUNNER_TEMP/downloaded"
+          for archive in dist/*.zip; do
+            cmp "$archive" "$RUNNER_TEMP/downloaded/$(basename "$archive")"
+            cmp "$archive.sha256" "$RUNNER_TEMP/downloaded/$(basename "$archive").sha256"
+          done
+          printf '%s\n' dist/*.zip dist/*.sha256 | sed 's|^dist/||' | LC_ALL=C sort > "$RUNNER_TEMP/expected-assets"
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/release.json"
+          jq -r '.assets[].name' "$RUNNER_TEMP/release.json" | LC_ALL=C sort > "$RUNNER_TEMP/actual-assets"
+          diff -u "$RUNNER_TEMP/expected-assets" "$RUNNER_TEMP/actual-assets"
+          test "$(jq -r .draft "$RUNNER_TEMP/release.json")" = true
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq .object.sha)" = "$RELEASE_TAG_OBJECT"
+          gh release edit "$RELEASE_TAG" --draft=false --latest
+      - name: Remove signing material
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/previous-keychain" ]; then
+            previous="$(tr -d '"' < "$RUNNER_TEMP/previous-keychain" | xargs)"
+            security default-keychain -d user -s "$previous"
+          fi
+          security delete-keychain "$RUNNER_TEMP/crawlbar-release.keychain-db" || true
+          rm -f "$RUNNER_TEMP/signing.p12" "$RUNNER_TEMP/notary.p8"
