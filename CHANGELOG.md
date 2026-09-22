@@ -1,11 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 - 2026-09-22
 
-- Add optional arm64 and x86_64 macOS release archives while keeping the universal archive and its filename.
-- Generate architecture-specific Homebrew formulas from verified release archives, preserving signature checks and universal downloads for older releases.
+**Highlights:** Smaller downloads for Apple Silicon and Intel Macs, plus safer crawler timestamps and native configuration edits.
+
 - Ignore non-finite and out-of-range crawler timestamps so malformed status output cannot crash the app or CLI.
 - Preserve unrelated TOML array-table values when reading, setting, or clearing native crawler configuration, including table headers with comments.
+- Add optional arm64 and x86_64 macOS release archives while keeping the universal archive and its filename.
+- Generate architecture-specific Homebrew formulas from verified release archives, preserving signature checks and universal downloads for older releases.
 - Exclude generated iconset intermediates from macOS app packages while retaining the compiled app icon and crawler icons.
 
 ## 0.5.0 - 2026-09-13
