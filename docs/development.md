@@ -31,6 +31,22 @@ The packaging script asks SwiftPM for its binary output directory, so both nativ
 
 The packaged app bundle version comes from `version.env`. Release notes live in [CHANGELOG.md](../CHANGELOG.md).
 
+Maintainers publish with the **Publish release** workflow (`publish.yml`). Finalize
+the changelog (including a Highlights paragraph) and version on `main`, wait for CI,
+then push a signed annotated `vX.Y.Z` tag and dispatch the workflow with that tag.
+The workflow verifies GitHub's tag signature and ancestry on `main`, builds all
+three architectures with Xcode 16.3, and publishes only after signing,
+notarization, and upload verification succeed. A failed run retains its draft;
+rerun the same tag to resume. Published releases cannot be overwritten by this
+workflow.
+
+Repository secrets are `MACOS_SIGNING_P12`, `MACOS_SIGNING_P12_PASSWORD`,
+`ASC_KEY_ID`, `ASC_ISSUER_ID`, and `ASC_PRIVATE_KEY_P8`. The certificate must use
+the OpenClaw Foundation identity below. Signing material stays in an ephemeral
+runner keychain and is removed at job completion. After publication, dispatch
+**Verify release** with the same tag to verify the public downloads independently
+(a release published using the workflow token does not trigger another workflow).
+
 `Scripts/package_release.sh` builds the official universal, hardened app, then notarizes, staples, and verifies it. Official packaging fails closed unless it uses the OpenClaw Foundation Developer ID identity. Runtime keychain and notarization-profile locators belong in the ignored `.mac-release.local.env`, never in committed configuration.
 
 Maintainers can also build smaller architecture-specific artifacts with `Scripts/package_release.sh --arch arm64` and `Scripts/package_release.sh --arch x86_64`. The universal archive keeps its `CrawlBar-vVERSION-macos.zip` name; thin archives add `-arm64` or `-x86_64` before `.zip`. Each archive has a matching `.sha256` file. Every variant includes the app, CLI helper, and resources and receives its own signing and notarization checks.
