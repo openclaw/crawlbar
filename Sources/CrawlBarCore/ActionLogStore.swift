@@ -4,6 +4,8 @@ public struct CrawlActionLogStore: @unchecked Sendable {
     public let directoryURL: URL
     private let fileManager: FileManager
 
+    private static let maxRetainedLogCount = 200
+
     public init(
         directoryURL: URL = Self.defaultDirectory(),
         fileManager: FileManager = .default)
@@ -27,23 +29,12 @@ public struct CrawlActionLogStore: @unchecked Sendable {
             [.posixPermissions: NSNumber(value: Int16(0o600))],
             ofItemAtPath: url.path)
         #endif
+        _ = self.retainedLogsNewestFirst()
         return url
     }
 
     public func recent(limit: Int = 20) -> [URL] {
-        guard let urls = try? self.fileManager.contentsOfDirectory(
-            at: self.directoryURL,
-            includingPropertiesForKeys: [.contentModificationDateKey])
-        else {
-            return []
-        }
-        return urls
-            .lazy
-            .filter { $0.pathExtension == "json" }
-            .map { ($0, self.modificationDate($0)) }
-            .sorted { $0.1 > $1.1 }
-            .prefix(limit)
-            .map(\.0)
+        Array(self.retainedLogsNewestFirst().prefix(max(0, limit)))
     }
 
     public func recentResults(limit: Int = 20) -> [CrawlCommandResult] {
@@ -59,8 +50,34 @@ public struct CrawlActionLogStore: @unchecked Sendable {
             .appendingPathComponent("logs", isDirectory: true)
     }
 
-    private func modificationDate(_ url: URL) -> Date {
-        ((try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate) ?? .distantPast
+    private func retainedLogsNewestFirst() -> [URL] {
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .isRegularFileKey, .isSymbolicLinkKey]
+        guard let urls = try? self.fileManager.contentsOfDirectory(
+            at: self.directoryURL,
+            includingPropertiesForKeys: Array(keys))
+        else {
+            return []
+        }
+        let sorted = urls
+            .compactMap { url -> (URL, Date)? in
+                // removeItem also deletes directories recursively. Only log files are eligible.
+                guard url.pathExtension == "json",
+                      let values = try? url.resourceValues(forKeys: keys),
+                      values.isRegularFile == true,
+                      values.isSymbolicLink == false
+                else { return nil }
+                return (url, values.contentModificationDate ?? .distantPast)
+            }
+            .sorted {
+                if $0.1 == $1.1 { return $0.0.lastPathComponent < $1.0.lastPathComponent }
+                return $0.1 > $1.1
+            }
+        if sorted.count > Self.maxRetainedLogCount {
+            for entry in sorted.dropFirst(Self.maxRetainedLogCount) {
+                try? self.fileManager.removeItem(at: entry.0)
+            }
+        }
+        return sorted.prefix(Self.maxRetainedLogCount).map(\.0)
     }
 
 }

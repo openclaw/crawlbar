@@ -38,6 +38,7 @@ enum CrawlBarSelfTest {
         try Self.testGogStatusServiceVerifiesOAuthOrServiceAccount()
         try Self.testActionFailuresPreserveStatusMetadata()
         try Self.testActionLogStoreReadsRecentResults()
+        try Self.testActionLogStorePrunesOldLogs()
         try Self.testQueryActionResolverSkipsSQLForPlainText()
         try Self.testExecutableResolverUsesMacCliFallbackPaths()
         try Self.testRegistryResolvesBirdclawAccessPathBinary()

@@ -62,6 +62,8 @@ See the [CLI reference](docs/cli.md) for queries, actions, backups, configuratio
 
 CrawlBar stores its main configuration at `~/.crawlbar/config.json`, external manifests under `~/.crawlbar/apps`, and action logs under `~/.crawlbar/logs`. Configuration and logs use private file permissions.
 
+CrawlBar keeps the newest 200 action logs by modification time, removing older log files when logs are saved or listed. Other file types, directories, and symlinks are left alone.
+
 Crawler command output is redacted before it reaches the UI, CLI response, or action log. Source crawlers continue to own their archives, authentication, parsing, search, and source-specific privacy policy.
 
 ## Development
