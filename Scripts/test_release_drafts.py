@@ -81,11 +81,11 @@ class ReleaseDraftTests(unittest.TestCase):
 
     def test_dry_run_has_no_release_writer_or_signing_credentials(self):
         workflow = (ROOT / ".github/workflows/publish.yml").read_text()
-        self.assertIn("if: ${{ !inputs.dry_run &&", workflow)
+        self.assertIn("if: ${{ github.event_name == 'workflow_dispatch' && !inputs.dry_run &&", workflow)
         self.assertIn("permissions:\n  contents: read", workflow)
         publish, dry_run = workflow.split("\n  dry-run:\n", 1)
         self.assertIn("permissions:\n      contents: write", publish)
-        self.assertIn("if: ${{ inputs.dry_run &&", dry_run)
+        self.assertIn("if: ${{ github.event_name == 'pull_request' || (inputs.dry_run &&", dry_run)
         for forbidden in ("secrets.", "GH_TOKEN", "contents: write", "gh release", "package_release.sh", "notarytool"):
             self.assertNotIn(forbidden, dry_run)
         self.assertIn("arch: [arm64, x86_64, universal]", dry_run)

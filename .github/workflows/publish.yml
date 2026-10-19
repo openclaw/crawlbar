@@ -1,6 +1,7 @@
 name: Publish release
 
 on:
+  pull_request:
   workflow_dispatch:
     inputs:
       tag:
@@ -17,12 +18,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: publish-${{ inputs.tag }}
+  group: publish-${{ github.event.pull_request.number || inputs.tag }}
   cancel-in-progress: false
 
 jobs:
   publish:
-    if: ${{ !inputs.dry_run && github.ref == 'refs/heads/main' && github.ref_protected && endsWith(github.workflow_ref, '@refs/heads/main') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.dry_run && github.ref == 'refs/heads/main' && github.ref_protected && endsWith(github.workflow_ref, '@refs/heads/main') }}
     permissions:
       contents: write
     runs-on: xcode-27
@@ -172,7 +173,7 @@ jobs:
           rm -f "$RUNNER_TEMP/signing.p12" "$RUNNER_TEMP/notary.p8"
 
   dry-run:
-    if: ${{ inputs.dry_run && github.ref == 'refs/heads/main' }}
+    if: ${{ github.event_name == 'pull_request' || (inputs.dry_run && github.ref == 'refs/heads/main') }}
     runs-on: xcode-27
     timeout-minutes: 30
     strategy:
