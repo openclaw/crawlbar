@@ -15,7 +15,7 @@ python3 Scripts/test_cli.py "$(swift build --show-bin-path)/crawlbarctl"
 
 SwiftPM names the development CLI `crawlbarctl` to avoid colliding with the `CrawlBar` app binary on case-insensitive macOS filesystems. Packaged and Homebrew installations expose the helper as `crawlbar`.
 
-CI runs the build, executable self-test, CLI smoke, and packaging checks with Xcode 16.3 on macOS 15 and Xcode 26.6 on macOS 26. Xcode 16.3 verifies the Swift 6.1 floor; the newer toolchain checks forward compatibility. Select a local Xcode with `DEVELOPER_DIR` when testing a specific compiler.
+CI runs the build, executable self-test, CLI smoke, and packaging checks with the runner-provided Xcode 27 on `xcode-27`. The Swift tools 6.1 source floor and macOS 14 deployment target remain explicit. Select a local Xcode with `DEVELOPER_DIR` when testing a specific compiler.
 
 ## Package the app
 
@@ -35,10 +35,15 @@ Maintainers publish with the **Publish release** workflow (`publish.yml`). Final
 the changelog (including a Highlights paragraph) and version on `main`, wait for CI,
 then push a signed annotated `vX.Y.Z` tag and dispatch the workflow with that tag.
 The workflow verifies GitHub's tag signature and ancestry on `main`, builds all
-three architectures with Xcode 16.3, and publishes only after signing,
+three architectures with Xcode 27, and publishes only after signing,
 notarization, and upload verification succeed. A failed run retains its draft;
 rerun the same tag to resume. Published releases cannot be overwritten by this
 workflow.
+
+For a read-only rehearsal on `main`, dispatch **Publish release** with `dry_run=true`
+and the current tag. It builds current source for arm64, x86_64, and universal,
+checks macOS 14 load commands, and runs the Intel helper through Rosetta. It does
+not access release credentials or create, update, or publish a release.
 
 Repository secrets are `MACOS_SIGNING_P12`, `MACOS_SIGNING_P12_PASSWORD`,
 `ASC_KEY_ID`, `ASC_ISSUER_ID`, and `ASC_PRIVATE_KEY_P8`. The certificate must use

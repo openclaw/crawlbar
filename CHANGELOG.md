@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Move CI and release verification to Xcode 27 while retaining macOS 14 support; add a read-only release rehearsal for Apple Silicon and Intel builds.
+
 - Preserve native TOML literal strings, inline-commented scalars, whitespace, and escaped control characters when saving crawler settings. Thanks @SebTardif.
 - Keep the newest 200 action logs when saving or listing history, preserving non-log files, directories, and symlinks. Thanks @SebTardif.
 
