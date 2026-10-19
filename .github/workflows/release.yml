@@ -15,13 +15,17 @@ permissions:
 
 jobs:
   verify:
-    runs-on: macos-15
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Verify Rosetta
+        run: |
+          arch -x86_64 /usr/bin/true || sudo softwareupdate --install-rosetta --agree-to-license
+          arch -x86_64 /usr/bin/true
       - name: Download and verify release assets
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
@@ -93,4 +97,13 @@ jobs:
             actual="$(shasum -a 256 "$archive" | awk '{ print $1 }')"
             test "$actual" = "$expected"
             CRAWLBAR_EXPECTED_VERSION="$version" Scripts/verify_release.sh --require-notarized --arch "$architecture" "$archive"
+            smoke_dir="$(mktemp -d "$RUNNER_TEMP/crawlbar-smoke.XXXXXX")"
+            ditto -x -k "$archive" "$smoke_dir"
+            if [ "$architecture" != x86_64 ]; then
+              arch -arm64 "$smoke_dir/CrawlBar.app/Contents/Helpers/crawlbar" --help
+            fi
+            if [ "$architecture" != arm64 ]; then
+              arch -x86_64 "$smoke_dir/CrawlBar.app/Contents/Helpers/crawlbar" --help
+            fi
+            rm -rf "$smoke_dir"
           done

@@ -15,19 +15,11 @@ concurrency:
 
 jobs:
   swift:
-    name: Swift (Xcode ${{ matrix.xcode }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-15
-            xcode: '16.3'
-          - os: macos-26
-            xcode: '26.6'
-    runs-on: ${{ matrix.os }}
+    name: Swift (Xcode 27)
+    runs-on: xcode-27
     timeout-minutes: 15
     env:
-      DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
+      MACOSX_DEPLOYMENT_TARGET: '14.0'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

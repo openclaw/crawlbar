@@ -79,6 +79,20 @@ class ReleaseDraftTests(unittest.TestCase):
             )
             return result, output.read_text(), json.loads(state.read_text())["calls"]
 
+    def test_dry_run_has_no_release_writer_or_signing_credentials(self):
+        workflow = (ROOT / ".github/workflows/publish.yml").read_text()
+        self.assertIn("if: ${{ github.event_name == 'workflow_dispatch' && !inputs.dry_run &&", workflow)
+        self.assertIn("permissions:\n  contents: read", workflow)
+        publish, dry_run = workflow.split("\n  dry-run:\n", 1)
+        self.assertIn("permissions:\n      contents: write", publish)
+        self.assertIn("if: ${{ github.event_name == 'pull_request' || (inputs.dry_run &&", dry_run)
+        for forbidden in ("secrets.", "GH_TOKEN", "contents: write", "gh release", "package_release.sh", "notarytool"):
+            self.assertNotIn(forbidden, dry_run)
+        self.assertIn("arch: [arm64, x86_64, universal]", dry_run)
+        self.assertIn("arch -x86_64 /usr/bin/true", dry_run)
+        self.assertIn("arch -x86_64 dist/CrawlBar.app/Contents/Helpers/crawlbar --help", dry_run)
+        self.assertIn("vtool -show-build", dry_run)
+
     def test_existing_draft_on_later_page_is_resumed_by_id(self):
         releases = [{"id": n + 100, "tag_name": f"v1.0.{n}", "draft": False} for n in range(100)]
         releases.append({"id": 42, "tag_name": TAG, "draft": True})
